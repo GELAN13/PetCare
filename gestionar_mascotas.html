@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Gestionar Mascotas — PetCare+</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body data-theme="light">
+  <header class="header">
+    <button class="menu-btn" id="menuToggle">☰</button>
+    <div class="brand">
+      <h1>🐾 Gestionar Mascotas</h1>
+    </div>
+    <div><a class="btn" href="menu.html">← Volver al menú</a></div>
+  </header>
+
+  <main class="container">
+    <div class="panel">
+      <h3>Tus mascotas</h3>
+      <div id="myPets" style="display:flex;gap:12px;flex-wrap:wrap"></div>
+
+      <hr>
+      <div id="editArea" style="display:none;margin-top:12px">
+        <h4>Editar mascota</h4>
+        <form id="editForm" class="form-grid">
+          <input id="e_name" class="input" placeholder="Nombre">
+          <input id="e_breed" class="input" placeholder="Raza">
+          <div class="age-row"><input id="e_ageNumber" class="input" type="number" min="0" style="width:120px"><select
+              id="e_ageUnit" class="input" style="width:140px">
+              <option value="años">Años</option>
+              <option value="meses">Meses</option>
+            </select></div>
+          <select id="e_tipoAnimal" class="input">
+            <option value="Perro">Perro</option>
+            <option value="Gato">Gato</option>
+            <option value="Hamster">Hamster</option>
+            <option value="Conejo">Conejo</option>
+            <option value="Ave">Ave</option>
+            <option value="Otro">Otro</option>
+          </select>
+          <select id="e_sex" class="input">
+            <option value="Macho">Macho</option>
+            <option value="Hembra">Hembra</option>
+          </select>
+          <select id="e_tipo" class="input">
+            <option value="adopcion">Adopción</option>
+            <option value="extraviado">Extraviado</option>
+          </select>
+          <textarea id="e_desc" class="input" placeholder="Descripción"></textarea>
+
+          <label class="small">Fotos actuales (puedes eliminar)</label>
+          <div id="currentPhotos" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+
+          <label class="small">Agregar fotos (hasta 5)</label>
+          <input id="newPhotos" class="input" type="file" accept="image/*" multiple>
+
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+            <button class="btn" id="saveBtn">Guardar cambios</button>
+          </div>
+        </form>
+
+        <div style="margin-top:12px">
+          <button id="deleteBtn" class="btn" style="background:#dc2626">Eliminar Mascota</button>
+        </div>
+      </div>
+
+      <p id="msg" class="small"></p>
+    </div>
+  </main>
+
+  <script type="module">
+    import firebaseConfig from './firebaseConfig.js';
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+    import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+    import { getDatabase, ref, get, update, remove } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+    import { getStorage, ref as sref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-storage.js';
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const rdb = getDatabase(app);
+    const storage = getStorage(app);
+
+    const $ = id => document.getElementById(id);
+    let currentUser = null;
+    let selectedId = null;
+    let selectedPet = null;
+
+    onAuthStateChanged(auth, user => {
+      if (!user) { window.location.href = 'login.html'; return; }
+      currentUser = user;
+      loadMyPets();
+    });
+
+    async function loadMyPets() {
+      const snap = await get(ref(rdb, 'mascotas'));
+      const data = snap.val() || {};
+      const container = $('myPets');
+      container.innerHTML = '';
+      for (const id of Object.keys(data)) {
+        const p = data[id];
+        if (p.ownerUid !== currentUser.uid) continue;
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.width = '220px';
+        const img = (p.images && p.images.length) ? p.images[0] : 'img/sin_foto.png';
+        card.innerHTML = `<img src="${img}" style="width:100%;height:140px;object-fit:cover;border-radius:8px"><h4>${p.name}</h4><div class="small">${p.breed} • ${p.ageNum} ${p.ageUnit}</div><div class="small">${p.tipo} • ${p.tipoAnimal || ''}</div>`;
+        card.addEventListener('click', () => loadIntoEditor(id, p));
+        container.appendChild(card);
+      }
+      if (container.innerHTML === '') container.innerHTML = '<p class="small">No tienes mascotas registradas.</p>';
+    }
+
+    function clearCurrentPhotos() { $('currentPhotos').innerHTML = ''; }
+
+    function renderCurrentPhotos(p) {
+      clearCurrentPhotos();
+      const wrap = $('currentPhotos');
+      const imgs = p.images || [];
+      const paths = p.imagePaths || [];
+      imgs.forEach((src, i) => {
+        const box = document.createElement('div');
+        box.style.position = 'relative';
+        box.style.width = '110px';
+        box.style.height = '90px';
+        const image = document.createElement('img');
+        image.src = src;
+        image.style.width = '100%';
+        image.style.height = '100%';
+        image.style.objectFit = 'cover';
+        image.style.borderRadius = '8px';
+        box.appendChild(image);
+        const del = document.createElement('button');
+        del.textContent = 'Eliminar';
+        del.className = 'btn';
+        del.style.position = 'absolute';
+        del.style.bottom = '6px';
+        del.style.left = '6px';
+        del.style.padding = '6px';
+        del.style.background = '#dc2626';
+        del.addEventListener('click', () => removePhoto(i));
+        box.appendChild(del);
+        wrap.appendChild(box);
+      });
+    }
+
+    async function removePhoto(index){
+  if (!selectedId) return;
+  if (!confirm('¿Eliminar esta foto?')) return;
+
+  const petRef = ref(rdb,'mascotas/' + selectedId);
+  const snap = await get(petRef);
+  const pet = snap.val() || {};
+  const imgs = pet.images || [];
+  const paths = pet.imagePaths || [];
+
+  const removedPath = paths[index];
+
+  imgs.splice(index,1);
+  paths.splice(index,1);
+
+  await update(petRef, { images: imgs, imagePaths: paths });
+
+  if(removedPath){
+    try{
+      await deleteObject(sref(storage, removedPath));
+    } catch(err){
+      console.warn('No se pudo eliminar archivo', err);
+    }
+  }
+
+  $('msg').textContent = 'Foto eliminada';
+
+  // 💥 Aquí estaba el error: antes solo se editaba el objeto local
+  await reloadPet(); // ✅ nueva foto correctamente actualizada
+}
+
+
+
+    function loadIntoEditor(id, p) {
+      selectedId = id;
+      selectedPet = p;
+      $('editArea').style.display = 'block';
+      $('e_name').value = p.name || '';
+      $('e_breed').value = p.breed || '';
+      $('e_ageNumber').value = p.ageNum || 0;
+      $('e_ageUnit').value = p.ageUnit || 'años';
+      $('e_tipoAnimal').value = p.tipoAnimal || 'Perro';
+      $('e_sex').value = p.sex || 'Macho';
+      $('e_tipo').value = p.tipo || 'adopcion';
+      $('e_desc').value = p.desc || '';
+      renderCurrentPhotos(p);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    $('newPhotos').addEventListener('change', async () => {
+      const files = Array.from($('newPhotos').files).slice(0, 5);
+      if (!selectedId) { alert('Selecciona una mascota para agregar fotos'); return; }
+      const petRef = ref(rdb, 'mascotas/' + selectedId);
+      const pSnap = await get(petRef);
+      const p = pSnap.val() || {};
+      const existing = p.images || [];
+      const existingPaths = p.imagePaths || [];
+      if (existing.length + files.length > 5) { alert('Máximo 5 fotos por mascota'); return; }
+      $('msg').textContent = 'Subiendo fotos...';
+      for (const f of files) {
+        const path = `pets/${Date.now()}_${f.name.replace(/\s+/g, '_')}`;
+        const storageRef = sref(storage, path);
+        const arrayBuf = await f.arrayBuffer();
+        await uploadBytes(storageRef, new Uint8Array(arrayBuf));
+        const url = await getDownloadURL(storageRef);
+        existing.push(url);
+        existingPaths.push(path);
+      }
+      await update(petRef, { images: existing, imagePaths: existingPaths });
+      $('msg').textContent = 'Fotos agregadas';
+      const newSnap = await get(petRef);
+      selectedPet = newSnap.val() || {};
+      renderCurrentPhotos(selectedPet);
+      $('newPhotos').value = '';
+    });
+
+    $('saveBtn').addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (!selectedId) return;
+      const payload = {
+        name: $('e_name').value.trim(),
+        breed: $('e_breed').value.trim(),
+        ageNum: Number($('e_ageNumber').value),
+        ageUnit: $('e_ageUnit').value,
+        tipoAnimal: $('e_tipoAnimal').value,
+        sex: $('e_sex').value,
+        tipo: $('e_tipo').value,
+        desc: $('e_desc').value.trim()
+      };
+      await update(ref(rdb, 'mascotas/' + selectedId), payload);
+      $('msg').textContent = 'Actualizado';
+      loadMyPets();
+    });
+
+    $('deleteBtn').addEventListener('click', async () => {
+      if (!selectedId) return;
+      if (!confirm('¿Seguro que deseas eliminar esta mascota? Esta acción no se puede deshacer')) return;
+      const petRef = ref(rdb, 'mascotas/' + selectedId);
+      const pSnap = await get(petRef);
+      const p = pSnap.val() || {};
+      const paths = p.imagePaths || [];
+      for (const path of paths) {
+        try { await deleteObject(sref(storage, path)); } catch (err) { console.warn('Error deleting storage file', err); }
+      }
+      await remove(petRef);
+      $('msg').textContent = 'Mascota eliminada';
+      selectedId = null;
+      selectedPet = null;
+      $('editArea').style.display = 'none';
+      loadMyPets();
+    });
+
+    const saved = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', saved);
+    document.getElementById('menuToggle').addEventListener('click', () => { localStorage.setItem('menuOpen', 'true'); window.location.href = 'menu.html'; });
+
+  </script>
+</body>
+
+</html>

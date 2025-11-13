@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mensajes — PetCare+</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    .chat-app{display:flex;gap:12px}
+    .chat-list{width:320px;background:var(--panel);padding:8px;border-radius:10px;height:620px;overflow:auto;box-shadow:var(--shadow)}
+    .chat-item{padding:10px;border-radius:8px;display:flex;align-items:center;gap:8px;cursor:pointer;border-bottom:1px solid rgba(0,0,0,0.03)}
+    .chat-item:hover{background:rgba(0,0,0,0.02)}
+    .chat-pane{flex:1;background:var(--panel);padding:0;border-radius:10px;display:flex;flex-direction:column;height:620px;box-shadow:var(--shadow);overflow:hidden}
+    .chat-header{display:flex;align-items:center;gap:12px;padding:12px;border-bottom:1px solid rgba(0,0,0,0.04)}
+    .avatar{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--accent)}
+    .chat-window{flex:1;padding:12px;overflow:auto;background:linear-gradient(180deg,rgba(0,0,0,0.01),rgba(0,0,0,0))}
+    .msg{padding:8px;border-radius:16px;margin:6px 0;max-width:75%;word-break:break-word}
+    .msg.me{margin-left:auto;background:var(--accent);color:white}
+    .msg.them{background:rgba(0,0,0,0.05);color:var(--text)}
+    .chat-input{display:flex;gap:8px;padding:12px;border-top:1px solid rgba(0,0,0,0.04);background:var(--panel)}
+    .chat-input .input{flex:1}
+    .empty-note{text-align:center;color:var(--muted);padding:18px}
+
+    
+    /* 🔹 Estilos para el modal del mapa */
+    #mapModal {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    #mapBox {
+      width: 90%;
+      max-width: 600px;
+      height: 400px;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    #map {
+      flex: 1;
+    }
+    #mapButtons {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px;
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body data-theme="light">
+  
+    
+  <header class="header">
+    <button class="menu-btn" id="menuToggle">☰</button>
+    <div class="brand"><h1>🐾 PetCare+ — Mensajes</h1></div>
+    <div>
+      <button id="selectAdoptBtn" class="btn" style="margin-left:12px;display:none;background:#16a34a">Seleccionar adoptante</button>
+      <button id="deleteConv" class="btn" style="margin-left:8px;display:none;background:#dc2626">Eliminar conversación</button>
+      <a class="btn" href="menu.html">← Volver al menú</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="panel chat-app">
+      <div class="chat-list" id="convoList">
+        <h4>Conversaciones</h4>
+        <div id="convos"></div>
+      </div>
+
+      <div class="chat-pane" id="chatPane">
+        <div class="chat-header" id="chatHeader">
+          <img id="petThumb" class="avatar" src="img/sin_foto.png" alt="mascota">
+          <div>
+            <div id="chatTitle" class="chat-meta">Selecciona conversación</div>
+            <div id="chatSub" class="chat-sub"></div>
+          </div>
+        </div>
+
+        <div class="chat-window" id="chatWindow"></div>
+        <div class="empty-note" id="emptyNote">Selecciona una conversación para empezar a chatear</div>
+
+        <form id="chatForm" class="chat-input" style="display:none">
+          <input id="chatInput" class="input" placeholder="Escribe un mensaje..." autocomplete="off">
+          <button class="btn" type="submit">Enviar</button>
+          <button id="sendLocation" class="btn" type="button" style="background:#0284c7;">📍</button>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <!-- 🔹 Modal del mapa -->
+  <div id="mapModal">
+    <div id="mapBox">
+      <div id="map"></div>
+      <div id="mapButtons">
+        <button id="cancelMap" class="btn" style="background:#dc2626;">Cancelar</button>
+        <button id="confirmMap" class="btn" style="background:#16a34a;">Enviar ubicación</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script type="module">
+    import firebaseConfig from './firebaseConfig.js';
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+    import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+    import { getDatabase, ref, get, onChildAdded, push, update, query, orderByChild, remove } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const rdb = getDatabase(app);
+    const $ = id => document.getElementById(id);
+
+    let currentUser = null;
+    let activeRoom = null;
+    let activeMeta = null;
+    let selectedCoords = null;
+    let map = null;
+    let marker = null;
+
+    onAuthStateChanged(auth, user => {
+      if (!user) return window.location.href = "login.html";
+      currentUser = user;
+      loadConversations();
+    });
+
+    async function loadConversations() {
+      const convRef = ref(rdb, "conversations");
+      const snap = await get(convRef);
+      const data = snap.val() || {};
+      const list = Object.keys(data).map(id => ({ id, ...data[id] }));
+      list.sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
+      const container = $("convos");
+      container.innerHTML = "";
+      for (const c of list) {
+        if (!c.participants?.includes(currentUser.uid)) continue;
+        const otherUid = c.participants.find(id => id !== currentUser.uid);
+        const userSnap = await get(ref(rdb, "usuarios/" + otherUid));
+        const otherName = (userSnap.val() && userSnap.val().name) || otherUid;
+        const el = document.createElement("div");
+        el.className = "chat-item";
+        el.innerHTML = `
+          <img src="${c.mascotaFoto || 'img/sin_foto.png'}" class="avatar">
+          <div style="flex:1">
+            <div style="font-weight:600">${otherName} • <span class="small">${c.mascotaNombre || ''}</span></div>
+            <div class="small">${c.lastMsg || ''}</div>
+          </div>`;
+        el.onclick = () => openConversation(c.id, c);
+        container.appendChild(el);
+      }
+      if (!container.innerHTML) container.innerHTML = `<p class="small">No hay conversaciones</p>`;
+    }
+
+    let unsubscribeChat = null;
+    function openConversation(roomId, meta) {
+      if (unsubscribeChat) unsubscribeChat();
+      activeRoom = roomId;
+      activeMeta = meta;
+      $("chatWindow").innerHTML = "";
+      $("emptyNote").style.display = "none";
+      $("chatForm").style.display = "flex";
+      $("deleteConv").style.display = "inline-block";
+
+      const petRef = ref(rdb, "mascotas/" + meta.mascotaId);
+      get(petRef).then(petSnap => {
+        const pet = petSnap.val();
+        $("petThumb").src = (pet?.images?.[0]) || pet?.foto || "img/sin_foto.png";
+      });
+
+      const otherUid = meta.participants.find(id => id !== currentUser.uid);
+      get(ref(rdb, "usuarios/" + otherUid)).then(u => {
+        $("chatTitle").textContent = (u.val()?.name) || otherUid;
+        $("chatSub").textContent = meta.mascotaNombre || "";
+        updateSelectButton(meta);
+      });
+
+      const ordered = query(ref(rdb, "chats/" + roomId), orderByChild("ts"));
+      unsubscribeChat = onChildAdded(ordered, snap => appendMessage(snap.val()));
+    }
+
+    function appendMessage(m) {
+      const w = $("chatWindow");
+      const msg = document.createElement("div");
+      msg.className = "msg " + (m.from === currentUser.uid ? "me" : "them");
+      if (m.type === "location" && m.lat && m.lng) {
+        const link = document.createElement("a");
+        link.href = `https://www.google.com/maps?q=${m.lat},${m.lng}`;
+        link.target = "_blank";
+        link.textContent = "📍 Ver ubicación seleccionada";
+        msg.appendChild(link);
+      } else msg.textContent = m.text;
+      w.appendChild(msg);
+      w.scrollTop = w.scrollHeight + 200;
+    }
+
+    $("chatForm").onsubmit = async e => {
+      e.preventDefault();
+      const text = $("chatInput").value.trim();
+      if (!text) return;
+      $("chatInput").value = "";
+      await push(ref(rdb, "chats/" + activeRoom), {
+        from: currentUser.uid,
+        text,
+        ts: Date.now()
+      });
+      await update(ref(rdb, "conversations/" + activeRoom), {
+        lastMsg: text, lastTs: Date.now()
+      });
+      loadConversations();
+    };
+
+    // 🔹 Abrir mapa para seleccionar ubicación
+    $("sendLocation").onclick = () => {
+      if (!activeRoom) return alert("Selecciona una conversación primero.");
+      $("mapModal").style.display = "flex";
+      if (!map) {
+        map = L.map('map').setView([19.43, -99.13], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 18
+        }).addTo(map);
+        map.on('click', e => {
+          selectedCoords = e.latlng;
+          if (marker) marker.remove();
+          marker = L.marker(selectedCoords).addTo(map);
+        });
+      }
+      setTimeout(() => map.invalidateSize(), 200);
+    };
+
+    $("cancelMap").onclick = () => {
+      $("mapModal").style.display = "none";
+      selectedCoords = null;
+    };
+
+    $("confirmMap").onclick = async () => {
+      if (!selectedCoords) return alert("Selecciona un punto en el mapa.");
+      await push(ref(rdb, "chats/" + activeRoom), {
+        from: currentUser.uid,
+        type: "location",
+        lat: selectedCoords.lat,
+        lng: selectedCoords.lng,
+        ts: Date.now()
+      });
+      await update(ref(rdb, "conversations/" + activeRoom), {
+        lastMsg: "📍 Ubicación enviada",
+        lastTs: Date.now()
+      });
+      $("mapModal").style.display = "none";
+      loadConversations();
+    };
+
+    $("deleteConv").onclick = async () => {
+      if (!activeRoom) return;
+      if (!confirm("¿Eliminar conversación completa?")) return;
+      await remove(ref(rdb, "chats/" + activeRoom));
+      await remove(ref(rdb, "conversations/" + activeRoom));
+      alert("Conversación eliminada");
+      window.location.reload();
+    };
+
+    async function updateSelectButton(meta) {
+      const petSnap = await get(ref(rdb, "mascotas/" + meta.mascotaId));
+      const pet = petSnap.val();
+      const btn = $("selectAdoptBtn");
+      if (!pet) return (btn.style.display = "none");
+      if (currentUser.uid !== pet.ownerUid) return (btn.style.display = "none");
+
+      if (pet.tipo === "adopcion") {
+        btn.textContent = pet.status === "adopted" ? "Adoptado ✅" : "Seleccionar adoptante";
+        btn.style.background = "#16a34a";
+        btn.onclick = async () => {
+          await update(ref(rdb, "mascotas/" + meta.mascotaId), { status: "adopted" });
+          alert("Mascota marcada como adoptada 🐕");
+          btn.textContent = "Adoptado ✅";
+        };
+        btn.style.display = "inline-block";
+      } else if (pet.tipo === "extraviado") {
+        btn.textContent = pet.status === "found" ? "Encontrada ✅" : "Marcar como encontrada";
+        btn.style.background = "#0284c7";
+        btn.onclick = async () => {
+          await update(ref(rdb, "mascotas/" + meta.mascotaId), { status: "found" });
+          alert("Mascota marcada como encontrada 🐾");
+          btn.textContent = "Encontrada ✅";
+        };
+        btn.style.display = "inline-block";
+      } else btn.style.display = "none";
+    }
+
+    $("menuToggle").onclick = () => {
+  localStorage.setItem("menuOpen", "true");
+  window.location.href = "menu.html";
+};
+  </script>
+</body>
+</html>

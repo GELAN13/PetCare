@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Gestionar Mascotas — PetCare+</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+
+<body data-theme="light">
+<header class="header">
+  
+  <div class="brand"><h1>🐾 PetCare+ — Registro</h1></div>
+</header>
+
+<main class="container">
+  <div class="panel" style="max-width:620px;margin:40px auto">
+
+    <h2>Crear cuenta</h2>
+
+    <div class="form-grid">
+      <input id="name" class="input" placeholder="Nombre">
+      <input id="email" class="input" placeholder="Correo" type="email">
+      <input id="phone" class="input" placeholder="Teléfono" type="tel">
+      <input id="password" class="input" placeholder="Contraseña" type="password">
+
+      <select id="role" class="input">
+        <option value="client">Cliente</option>
+      </select>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button id="registerBtn" class="btn">Registrar</button>
+        <a href="login.html" class="btn" style="background:#6b7280">Volver</a>
+      </div>
+
+      <p id="msg" class="small"></p>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+import firebaseConfig from './firebaseConfig.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+import { getDatabase, ref, set } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const rdb = getDatabase(app);
+
+const $ = id => document.getElementById(id);
+
+$('registerBtn').addEventListener('click', async ()=>{
+
+  const name  = $('name').value.trim();
+  const email = $('email').value.trim();
+  const phone = $('phone').value.trim();
+  const pw    = $('password').value;
+  const m     = $('msg');
+
+  m.textContent = ""; // limpia mensajes previos
+
+  // ✅ Validar campos vacíos
+  if (!name || !email || !pw || !phone){
+    m.textContent = "Completa todos los campos";
+    return;
+  }
+
+  // ✅ Validar formato de correo
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if(!emailRegex.test(email)){
+    m.textContent = "Correo inválido (ejemplo: usuario@gmail.com)";
+    return;
+  }
+
+  // ✅ Validar teléfono de 10 dígitos
+  const phoneDigits = phone.replace(/\D/g,'');
+  if(phoneDigits.length !== 10){
+    m.textContent = "El teléfono debe tener exactamente 10 dígitos";
+    return;
+  }
+
+  // ✅ Validar contraseña mínima
+  if(pw.length < 6){
+    m.textContent = "La contraseña debe tener mínimo 6 caracteres";
+    return;
+  }
+
+  try{
+    // Crear cuenta en Firebase
+    const cred = await createUserWithEmailAndPassword(auth,email,pw);
+
+    // Guardar el nombre visible
+    await updateProfile(cred.user, { displayName: name });
+
+    // Guardar datos en la base de datos
+    await set(ref(rdb,'usuarios/'+cred.user.uid), {
+      uid: cred.user.uid,
+      name,
+      email,
+      telefono: phoneDigits,
+      role: 'client'
+    });
+
+    m.textContent = "✅ Registrado correctamente";
+    setTimeout(()=>window.location.href='login.html', 800);
+
+  }catch(e){
+    m.textContent = e.message;
+  }
+});
+
+// Tema guardado
+const saved = localStorage.getItem('theme') || 'light';
+document.documentElement.setAttribute('data-theme', saved);
+
+// Volver al menú
+
+</script>
+
+</body>
+</html>

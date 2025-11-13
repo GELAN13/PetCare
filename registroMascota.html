@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Registrar Mascota</title>
+
+<link rel="stylesheet" href="styles.css">
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+</head>
+<body data-theme="light">
+
+<header class="header">
+  <button class="menu-btn" id="menuToggle">☰</button>
+  <div class="brand"><h1>🐾 PetCare+ — Registrar</h1></div>
+  <div><a class="btn" href="menu.html">← Volver al menú</a></div>
+</header>
+
+<main class="container">
+  <div class="panel" style="max-width:720px;margin:20px auto">
+    <h3>Registrar mascota</h3>
+
+    <form id="petForm" class="form-grid">
+
+      <input id="pname" class="input" placeholder="Nombre de la mascota" required>
+
+      <div style="margin-top:8px">
+        <label class="small">Tipo de mascota</label>
+        <select id="tipoAnimal" class="input">
+          <option value="Perro">Perro</option>
+          <option value="Gato">Gato</option>
+          <option value="Hamster">Hamster</option>
+          <option value="Conejo">Conejo</option>
+          <option value="Ave">Ave</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+
+      <input id="breed" class="input" placeholder="Raza" required>
+
+      <div class="age-row">
+        <input id="ageNumber" class="input" type="number" min="0" value="1" style="width:120px">
+        <select id="ageUnit" class="input" style="width:140px">
+          <option value="años">Años</option>
+          <option value="meses">Meses</option>
+        </select>
+      </div>
+
+      <select id="sex" class="input">
+        <option value="Macho">Macho</option>
+        <option value="Hembra">Hembra</option>
+      </select>
+
+      <select id="tipo" class="input">
+        <option value="adopcion">Adopción</option>
+        <option value="extraviado">Extraviado</option>
+      </select>
+
+      <textarea id="desc" class="input" placeholder="Descripción"></textarea>
+
+      <label class="small">Fotos (hasta 5)</label>
+      <input id="photos" class="input" type="file" accept="image/*" multiple>
+      <div class="file-preview" id="preview"></div>
+
+      <!-- Mapa oculto -->
+      <div id="mapWrap" style="display:none;margin-top:8px">
+        <label class="small">Haz clic en el mapa donde fue visto</label>
+        <div id="map" style="height:300px;border-radius:8px;overflow:hidden"></div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+        <button class="btn" type="submit">Guardar</button>
+      </div>
+    </form>
+
+    <p id="msg" class="small"></p>
+
+  </div>
+</main>
+
+<!-- Firebase + App -->
+<script type="module">
+import firebaseConfig from './firebaseConfig.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+import { getDatabase, ref, push } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const rdb = getDatabase(app);
+
+const $ = id => document.getElementById(id);
+
+// Autenticación
+onAuthStateChanged(auth, user => {
+  if (!user) window.location.href = 'login.html';
+});
+
+// ---- LEAFLET MAP ----
+let map = null;
+let marker = null;
+
+function initMap() {
+  if (map) return; // evita recrearlo
+
+  map = L.map('map').setView([19.5333, -96.9105], 13);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  map.on("click", e => {
+    if (!marker) marker = L.marker(e.latlng).addTo(map);
+    else marker.setLatLng(e.latlng);
+  });
+
+  // después de un pequeño delay asegura que se dibuje correctamente
+  setTimeout(() => {
+    map.invalidateSize();
+  }, 200);
+}
+
+
+// Vista previa fotos
+$('photos').addEventListener('change', () => {
+  const files = Array.from($('photos').files).slice(0, 5);
+  const preview = $('preview');
+  preview.innerHTML = '';
+
+  files.forEach(f => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = document.createElement('img');
+      img.src = fr.result;
+      preview.appendChild(img);
+    };
+    fr.readAsDataURL(f);
+  });
+});
+
+// archivo a base64
+function fileToDataURL(file) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = rej;
+    fr.readAsDataURL(file);
+  });
+}
+
+// Mostrar/ocultar mapa
+$('tipo').addEventListener('change', () => {
+  const v = $('tipo').value;
+
+  const wrap = document.getElementById('mapWrap');
+  wrap.style.display = v === 'extraviado' ? 'block' : 'none';
+
+  if (v === 'extraviado') {
+    initMap();  // crea y corrige el mapa cuando se muestra
+  }
+});
+
+
+// Guardar
+$('petForm').addEventListener('submit', async e => {
+  e.preventDefault();
+
+  const user = auth.currentUser;
+  if (!user) {
+    $('msg').textContent = 'Inicia sesión';
+    return;
+  }
+
+  const name = $('pname').value.trim();
+  const breed = $('breed').value.trim();
+  const ageNum = $('ageNumber').value;
+  const ageUnit = $('ageUnit').value;
+  const sex = $('sex').value;
+  const tipo = $('tipo').value;
+  const desc = $('desc').value.trim();
+  const files = Array.from($('photos').files).slice(0, 5);
+
+  if (!name || !breed) {
+    $('msg').textContent = 'Nombre y raza requeridos';
+    return;
+  }
+
+  if (tipo === 'extraviado' && !marker) {
+    $('msg').textContent = 'Selecciona un punto en el mapa';
+    return;
+  }
+
+  try {
+    const imgs = [];
+    for (const f of files) imgs.push(await fileToDataURL(f));
+
+    const lat = marker ? marker.getLatLng().lat : null;
+    const lng = marker ? marker.getLatLng().lng : null;
+
+    const payload = {
+      name,
+      breed,
+      ageNum: Number(ageNum),
+      ageUnit,
+      sex,
+      tipo,
+      tipoAnimal: $('tipoAnimal').value,
+      desc,
+      images: imgs,
+      lat,
+      lng,
+      ownerUid: user.uid,
+      ownerEmail: user.email,
+      createdAt: Date.now()
+    };
+
+    await push(ref(rdb, 'mascotas'), payload);
+
+    $('msg').textContent = 'Guardado con éxito ✅';
+
+    e.target.reset();
+    $('preview').innerHTML = '';
+    if (marker) {
+      map.removeLayer(marker);
+      marker = null;
+    }
+
+  } catch (err) {
+    $('msg').textContent = err.message;
+    console.error(err);
+  }
+});
+
+// Tema
+const saved = localStorage.getItem('theme') || 'light';
+document.documentElement.setAttribute('data-theme', saved);
+
+// Menú
+document.getElementById('menuToggle').addEventListener('click', () => {
+  localStorage.setItem('menuOpen', 'true');
+  window.location.href = 'menu.html';
+});
+</script>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+</body>
+</html>
+

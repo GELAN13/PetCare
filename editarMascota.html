@@ -1,0 +1,27 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Editar Mascota</title><link rel="stylesheet" href="styles.css"></head><body data-theme="light">
+<header class="header"><button class="menu-btn" id="menuToggle">☰</button><div class="brand"><h1>🐾 PetCare+ — Editar</h1></div><div><a class="btn" href="menu.html">← Volver al menú</a></div></header>
+<main class="container"><div class="panel" style="max-width:720px;margin:20px auto"><h3>Editar mascota</h3>
+<form id="editForm" class="form-grid"><input id="pname" class="input" placeholder="Nombre"><input id="breed" class="input" placeholder="Raza">
+<div class="age-row"><input id="ageNumber" class="input" type="number" min="0" style="width:120px"><select id="ageUnit" class="input" style="width:140px"><option value="años">Años</option><option value="meses">Meses</option></select></div>
+<select id="sex" class="input"><option value="Macho">Macho</option><option value="Hembra">Hembra</option></select>
+<select id="tipo" class="input"><option value="adopcion">Adopción</option><option value="extraviado">Extraviado</option></select>
+<textarea id="desc" class="input" placeholder="Descripción"></textarea>
+<label class="small">Fotos (hasta 5)</label><input id="photos" class="input" type="file" accept="image/*" multiple>
+<div class="file-preview" id="preview"></div>
+<div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn" type="submit">Guardar cambios</button></div></form><p id="msg" class="small"></p></div></main>
+<script type="module">
+import firebaseConfig from './firebaseConfig.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+import { getDatabase, ref, get, update } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+const app = initializeApp(firebaseConfig); const auth = getAuth(app); const rdb = getDatabase(app);
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search); const petId = params.get('petId');
+let currentUser = null;
+onAuthStateChanged(auth,user=>{ if(!user) window.location.href='login.html'; currentUser = user; loadPet(); });
+async function loadPet(){ if(!petId) return; const snap = await get(ref(rdb,'mascotas/'+petId)); const data = snap.val(); if(!data) return; if(data.ownerUid !== currentUser.uid){ alert('No tienes permiso para editar esta mascota'); window.location.href='listadoMascotas.html'; return; } $('pname').value=data.name||''; $('breed').value=data.breed||''; $('ageNumber').value=data.ageNum||0; $('ageUnit').value=data.ageUnit||'años'; $('sex').value=data.sex||'Macho'; $('tipo').value=data.tipo||'adopcion'; $('desc').value=data.desc||''; const prev = $('preview'); prev.innerHTML=''; const imgs = data.images || []; imgs.forEach(src=>{ const img=document.createElement('img'); img.src=src; prev.appendChild(img); }); }
+$('photos').addEventListener('change', ()=>{ const files=Array.from($('photos').files).slice(0,5); const prev=$('preview'); prev.innerHTML=''; files.forEach(f=>{ const fr=new FileReader(); fr.onload=()=>{ const img=document.createElement('img'); img.src=fr.result; prev.appendChild(img); }; fr.readAsDataURL(f); }); });
+$('editForm').addEventListener('submit', async e=>{ e.preventDefault(); if(!petId) return; const snap = await get(ref(rdb,'mascotas/'+petId)); const data = snap.val(); if(!data) return; if(data.ownerUid !== currentUser.uid){ alert('No tienes permiso'); return; } const name=$('pname').value.trim(), breed=$('breed').value.trim(), ageNum=$('ageNumber').value, ageUnit=$('ageUnit').value, sex=$('sex').value, tipo=$('tipo').value, desc=$('desc').value.trim(); const files=Array.from($('photos').files).slice(0,5); try{ const imgs=[]; for(const f of files){ imgs.push(await new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsDataURL(f); })); } const payload={ name, breed, ageNum: Number(ageNum), ageUnit, sex, tipo, desc }; if(imgs.length) payload.images = imgs; await update(ref(rdb,'mascotas/'+petId), payload); $('msg').textContent='Actualizado'; setTimeout(()=>window.location.href='listadoMascotas.html',800); }catch(err){ $('msg').textContent=err.message; console.error(err); } });
+const saved = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-theme', saved);
+document.getElementById('menuToggle').addEventListener('click', ()=>{ localStorage.setItem('menuOpen','true'); window.location.href='menu.html'; });
+</script></body></html>

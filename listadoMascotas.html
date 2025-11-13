@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Explorar Mascotas</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body data-theme="light">
+  <header class="header"><button class="menu-btn" id="menuToggle">☰</button>
+    <div class="brand">
+      <h1>🐾 PetCare+ — Explorar</h1>
+    </div>
+    <div><a class="btn" href="menu.html">← Volver al menú</a></div>
+  </header>
+  <main class="container">
+    <div class="panel">
+      <h3>Explorar mascotas</h3>
+      <div class="small">Filtrar</div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <select id="filterTipo" class="input" style="width:180px;margin-left:8px">
+          <option value="">Todos los tipos</option>
+          <option value="Perro">Perro</option>
+          <option value="Gato">Gato</option>
+          <option value="Hamster">Hamster</option>
+          <option value="Conejo">Conejo</option>
+          <option value="Ave">Ave</option>
+          <option value="Otro">Otro</option>
+        </select>
+        <button id="fAll" class="btn" style="background:#6b7280">Todos</button><button id="fAd"
+          class="btn">Adopción</button><button id="fEx" class="btn">Extraviado</button>
+      </div>
+      <div id="cards" style="margin-top:12px"></div>
+    </div>
+  </main>
+  <script type="module">
+    import firebaseConfig from './firebaseConfig.js';
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+    import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+    import { getDatabase, ref, get, child, remove } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+    const app = initializeApp(firebaseConfig); const auth = getAuth(app); const rdb = getDatabase(app);
+    const $ = id => document.getElementById(id);
+    let currentUid = null;
+    onAuthStateChanged(auth, user => { if (!user) window.location.href = 'login.html'; currentUid = user.uid; loadAll(); });
+    async function loadAll(filter, tipoFilter) {
+      const cards = $('cards'); cards.innerHTML = 'Cargando...'; const snap = await get(child(ref(rdb), 'mascotas')); const data = snap.val() || {}; const keys = Object.keys(data || {}); cards.innerHTML = ''; const list = keys.map(k => ({ id: k, ...data[k] })).reverse(); let filtered = filter ? list.filter(i => i.tipo === filter) : list; if (tipoFilter) { filtered = filtered.filter(i => i.tipoAnimal === tipoFilter); } if (filtered.length === 0) { cards.innerHTML = '<p class="small">No hay mascotas</p>'; return; } filtered.forEach(p => {
+        const div = document.createElement('div'); div.className = 'card'; const images = (p.images && p.images.length) ? p.images : ['img/sin_foto.png']; let idx = 0; div.innerHTML = `<div class="carousel"><img src="${images[0]}" id="img_${p.id}" class="pet-image"></div><h4>${p.name}</h4><div class="small">${p.breed} • ${p.ageNum} ${p.ageUnit}</div><p class="small">${p.tipo === 'adopcion' ? 'En adopción' : 'Extraviado'}</p><div style="display:flex;gap:8px;margin-top:8px">
+
+<button class="btn prev">◀</button><button class="btn next">▶</button><button class="btn contact" data-id="${p.id}" data-owner="${p.ownerUid}">Contactar</button><button class="btn loc" data-lat="${p.lat || ''}" data-lng="${p.lng || ''}">Ver ubicación</button></div>`;
+        // owner controls: only show if currentUid === ownerUid
+
+        cards.appendChild(div); // add status indicator
+        const statusSpan = document.createElement('span'); statusSpan.style.marginLeft = '8px'; statusSpan.style.display = 'inline-block'; statusSpan.style.width = '12px'; statusSpan.style.height = '12px'; statusSpan.style.borderRadius = '50%'; statusSpan.style.verticalAlign = 'middle'; if (p.status) { if (p.tipo === 'extraviado') { if (p.status === 'found') { statusSpan.style.background = 'red'; statusSpan.title = 'Encontrado'; } else { statusSpan.style.background = 'green'; statusSpan.title = 'Extraviado'; } } else { if (p.status === 'adopted') { statusSpan.style.background = 'red'; statusSpan.title = 'Adoptado'; } else if (p.status === 'in_process') { statusSpan.style.background = 'yellow'; statusSpan.title = 'En proceso'; } else { statusSpan.style.background = 'green'; statusSpan.title = 'Disponible'; } } div.querySelector('h4')?.parentNode.insertBefore(statusSpan, div.querySelector('h4')) } const imgEl = div.querySelector('img');
+        div.querySelector('.next').addEventListener('click', () => { idx = (idx + 1) % images.length; imgEl.src = images[idx]; });
+        div.querySelector('.prev').addEventListener('click', () => { idx = (idx - 1 + images.length) % images.length; imgEl.src = images[idx]; });
+        div.querySelector('.loc').addEventListener('click', () => { const lat = div.querySelector('.loc').dataset.lat, lng = div.querySelector('.loc').dataset.lng; if (lat && lng) window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank'); else alert('Sin ubicación'); });
+        div.querySelector('.contact').addEventListener('click', e => {
+          const btn = e.currentTarget; // <-- botón que fue clickeado
+          const id = btn.dataset.id;
+          const owner = btn.dataset.owner;
+          const qp = new URLSearchParams({
+            petId: id,
+            ownerUid: owner,
+            petName: p.name
+            
+          });
+          
+
+          window.location.href = 'mensajes.html?' + qp.toString();
+        });
+
+      });
+    }
+    document.getElementById('fAll').addEventListener('click', () => loadAll()); document.getElementById('fAd').addEventListener('click', () => loadAll('adopcion'));
+    document.getElementById('filterTipo').addEventListener('change', () => { const v = document.getElementById('filterTipo').value; loadAll(null, v); }); document.getElementById('fEx').addEventListener('click', () => loadAll('extraviado'));
+    const saved = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-theme', saved);
+    document.getElementById('menuToggle').addEventListener('click', () => { localStorage.setItem('menuOpen', 'true'); window.location.href = 'menu.html'; });
+  </script>
+</body>
+
+</html>
