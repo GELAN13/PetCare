@@ -30,7 +30,7 @@
 
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button id="registerBtn" class="btn">Registrar</button>
-        <a href="login.html" class="btn" style="background:#6b7280">Volver</a>
+        <a href="index.html" class="btn" style="background:#6b7280">Volver</a>
       </div>
 
       <p id="msg" class="small"></p>
@@ -103,7 +103,7 @@ $('registerBtn').addEventListener('click', async ()=>{
     });
 
     m.textContent = "✅ Registrado correctamente";
-    setTimeout(()=>window.location.href='login.html', 800);
+    setTimeout(()=>window.location.href='index.html', 800);
 
   }catch(e){
     m.textContent = e.message;

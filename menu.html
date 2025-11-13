@@ -25,8 +25,8 @@ function openMenu(){ sidebar.classList.add('open'); content.classList.add('shift
 function closeMenu(){ sidebar.classList.remove('open'); content.classList.remove('shift'); }
 menuToggle.addEventListener('click', ()=>{ if(sidebar.classList.contains('open')) closeMenu(); else openMenu(); localStorage.setItem('menuOpen', sidebar.classList.contains('open')); });
 document.querySelectorAll('.nav-item[data-href]').forEach(n=> n.addEventListener('click', ()=>{ window.location.href = n.dataset.href; closeMenu(); }));
-document.getElementById('logoutTop').addEventListener('click', async ()=>{ if(confirm('Cerrar sesión?')){ await signOut(auth); window.location.href='login.html'; } });
-document.getElementById('logoutSide').addEventListener('click', async ()=>{ if(confirm('Cerrar sesión?')){ await signOut(auth); window.location.href='login.html'; } });
+document.getElementById('logoutTop').addEventListener('click', async ()=>{ if(confirm('Cerrar sesión?')){ await signOut(auth); window.location.href='index.html'; } });
+document.getElementById('logoutSide').addEventListener('click', async ()=>{ if(confirm('Cerrar sesión?')){ await signOut(auth); window.location.href='index.html'; } });
 document.getElementById('themeToggle').addEventListener('click', ()=>{ const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'; document.documentElement.setAttribute('data-theme', cur); localStorage.setItem('theme', cur); });
 onAuthStateChanged(auth,user=>{ if(!user){ document.querySelector('.user').textContent='Invitado'; } else { document.querySelector('.user').textContent = user.displayName || user.email; } });
 if(localStorage.getItem('menuOpen')==='true') openMenu();

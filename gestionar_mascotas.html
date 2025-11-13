@@ -89,7 +89,7 @@
     let selectedPet = null;
 
     onAuthStateChanged(auth, user => {
-      if (!user) { window.location.href = 'login.html'; return; }
+      if (!user) { window.location.href = 'index.html'; return; }
       currentUser = user;
       loadMyPets();
     });
