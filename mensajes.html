@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="es">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -7,30 +8,121 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    .chat-app{display:flex;gap:12px}
-    .chat-list{width:320px;background:var(--panel);padding:8px;border-radius:10px;height:620px;overflow:auto;box-shadow:var(--shadow)}
-    .chat-item{padding:10px;border-radius:8px;display:flex;align-items:center;gap:8px;cursor:pointer;border-bottom:1px solid rgba(0,0,0,0.03)}
-    .chat-item:hover{background:rgba(0,0,0,0.02)}
-    .chat-pane{flex:1;background:var(--panel);padding:0;border-radius:10px;display:flex;flex-direction:column;height:620px;box-shadow:var(--shadow);overflow:hidden}
-    .chat-header{display:flex;align-items:center;gap:12px;padding:12px;border-bottom:1px solid rgba(0,0,0,0.04)}
-    .avatar{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--accent)}
-    .chat-window{flex:1;padding:12px;overflow:auto;background:linear-gradient(180deg,rgba(0,0,0,0.01),rgba(0,0,0,0))}
-    .msg{padding:8px;border-radius:16px;margin:6px 0;max-width:75%;word-break:break-word}
-    .msg.me{margin-left:auto;background:var(--accent);color:white}
-    .msg.them{background:rgba(0,0,0,0.05);color:var(--text)}
-    .chat-input{display:flex;gap:8px;padding:12px;border-top:1px solid rgba(0,0,0,0.04);background:var(--panel)}
-    .chat-input .input{flex:1}
-    .empty-note{text-align:center;color:var(--muted);padding:18px}
+    .chat-app {
+      display: flex;
+      gap: 12px
+    }
+
+    .chat-list {
+      width: 320px;
+      background: var(--panel);
+      padding: 8px;
+      border-radius: 10px;
+      height: 620px;
+      overflow: auto;
+      box-shadow: var(--shadow)
+    }
+
+    .chat-item {
+      padding: 10px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.03)
+    }
+
+    .chat-item:hover {
+      background: rgba(0, 0, 0, 0.02)
+    }
+
+    .chat-pane {
+      flex: 1;
+      background: var(--panel);
+      padding: 0;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      height: 620px;
+      box-shadow: var(--shadow);
+      overflow: hidden
+    }
+
+    .chat-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.04)
+    }
+
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--accent)
+    }
+
+    .chat-window {
+      flex: 1;
+      padding: 12px;
+      overflow: auto;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.01), rgba(0, 0, 0, 0))
+    }
+
+    .msg {
+      padding: 8px;
+      border-radius: 16px;
+      margin: 6px 0;
+      max-width: 75%;
+      word-break: break-word
+    }
+
+    .msg.me {
+      margin-left: auto;
+      background: var(--accent);
+      color: white
+    }
+
+    .msg.them {
+      background: rgba(0, 0, 0, 0.05);
+      color: var(--text)
+    }
+
+    .chat-input {
+      display: flex;
+      gap: 8px;
+      padding: 12px;
+      border-top: 1px solid rgba(0, 0, 0, 0.04);
+      background: var(--panel)
+    }
+
+    .chat-input .input {
+      flex: 1
+    }
+
+    .empty-note {
+      text-align: center;
+      color: var(--muted);
+      padding: 18px
+    }
+
     /* 🔹 Estilos para el modal del mapa */
     #mapModal {
       position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.6);
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
       display: none;
       justify-content: center;
       align-items: center;
       z-index: 9999;
     }
+
     #mapBox {
       width: 90%;
       max-width: 600px;
@@ -41,9 +133,11 @@
       display: flex;
       flex-direction: column;
     }
+
     #map {
       flex: 1;
     }
+
     #mapButtons {
       display: flex;
       justify-content: space-between;
@@ -52,13 +146,18 @@
     }
   </style>
 </head>
+
 <body data-theme="light">
   <header class="header">
     <button class="menu-btn" id="menuToggle">☰</button>
-    <div class="brand"><h1>🐾 PetCare+ — Mensajes</h1></div>
+    <div class="brand">
+      <h1>🐾 PetCare+ — Mensajes</h1>
+    </div>
     <div>
-      <button id="selectAdoptBtn" class="btn" style="margin-left:12px;display:none;background:#16a34a">Seleccionar adoptante</button>
-      <button id="deleteConv" class="btn" style="margin-left:8px;display:none;background:#dc2626">Eliminar conversación</button>
+      <button id="selectAdoptBtn" class="btn" style="margin-left:12px;display:none;background:#16a34a">Seleccionar
+        adoptante</button>
+      <button id="deleteConv" class="btn" style="margin-left:8px;display:none;background:#dc2626">Eliminar
+        conversación</button>
       <a class="btn" href="menu.html">← Volver al menú</a>
     </div>
   </header>
@@ -121,38 +220,53 @@
     let map = null;
     let marker = null;
 
+    let petIdFromURL = null;
+    const params = new URLSearchParams(window.location.search);
+    petIdFromURL = params.get("petId");
+
     onAuthStateChanged(auth, user => {
-      if (!user) return window.location.href = "login.html";
+      if (!user) return window.location.href = "index.html";
       currentUser = user;
       loadConversations();
+      initConversationFromURL();
     });
 
+   
     async function loadConversations() {
-      const convRef = ref(rdb, "conversations");
-      const snap = await get(convRef);
-      const data = snap.val() || {};
-      const list = Object.keys(data).map(id => ({ id, ...data[id] }));
-      list.sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
-      const container = $("convos");
-      container.innerHTML = "";
-      for (const c of list) {
-        if (!c.participants?.includes(currentUser.uid)) continue;
-        const otherUid = c.participants.find(id => id !== currentUser.uid);
-        const userSnap = await get(ref(rdb, "usuarios/" + otherUid));
-        const otherName = (userSnap.val() && userSnap.val().name) || otherUid;
-        const el = document.createElement("div");
-        el.className = "chat-item";
-        el.innerHTML = `
-          <img src="${c.mascotaFoto || 'img/sin_foto.png'}" class="avatar">
-          <div style="flex:1">
-            <div style="font-weight:600">${otherName} • <span class="small">${c.mascotaNombre || ''}</span></div>
-            <div class="small">${c.lastMsg || ''}</div>
-          </div>`;
-        el.onclick = () => openConversation(c.id, c);
-        container.appendChild(el);
-      }
-      if (!container.innerHTML) container.innerHTML = `<p class="small">No hay conversaciones</p>`;
-    }
+  const list = $("convos");
+  list.innerHTML = "";
+
+  const convRef = ref(rdb, "conversations");
+  const snap = await get(convRef);
+  const data = snap.val() || {};
+
+  const all = Object.entries(data)
+    .filter(([id, c]) => c.participants?.includes(currentUser.uid))
+    .sort((a, b) => (b[1].lastTs || 0) - (a[1].lastTs || 0));
+
+  if (all.length === 0) {
+    list.innerHTML = `<p class="small">No hay conversaciones</p>`;
+    return;
+  }
+
+  all.forEach(([id, meta]) => {
+    const div = document.createElement("div");
+    div.className = "chat-item";
+    div.innerHTML = `
+      <img src="${meta.mascotaFoto || 'img/sin_foto.png'}" 
+           class="avatar" style="width:42px;height:42px;">
+      <div>
+        <div><strong>${meta.mascotaNombre || 'Mascota'}</strong></div>
+        <div class="small">${meta.lastMsg || ''}</div>
+      </div>
+    `;
+
+    div.onclick = () => openConversation(id, meta);
+    list.appendChild(div);
+  });
+}
+
+
 
     let unsubscribeChat = null;
     function openConversation(roomId, meta) {
@@ -289,10 +403,52 @@
       } else btn.style.display = "none";
     }
     $("menuToggle").onclick = () => {
-  localStorage.setItem("menuOpen", "true");
-  window.location.href = "menu.html";
-};
+      localStorage.setItem("menuOpen", "true");
+      window.location.href = "menu.html";
+    };
+
+    async function initConversationFromURL() {
+      if (!petIdFromURL || !currentUser) return;
+
+      const convRef = ref(rdb, "conversations");
+      const snap = await get(convRef);
+      const data = snap.val() || {};
+
+      // Buscar conversación existente
+      let roomId = Object.keys(data).find(id =>
+        data[id].mascotaId === petIdFromURL &&
+        data[id].participants?.includes(currentUser.uid)
+      );
+
+      // Crear nueva conversación si no existe
+      if (!roomId) {
+        const newRef = push(convRef);
+        roomId = newRef.key;
+
+        // Obtener dueño de la mascota
+        const petSnap = await get(ref(rdb, "mascotas/" + petIdFromURL));
+        const pet = petSnap.val();
+        const ownerUid = pet?.ownerUid || null;
+
+        await update(ref(rdb, "conversations/" + roomId), {
+          mascotaId: petIdFromURL,
+          participants: [currentUser.uid, ownerUid].filter(Boolean),
+          lastTs: Date.now(),
+           mascotaNombre: pet?.name || pet?.nombre || "Sin nombre",
+          mascotaFoto: Array.isArray(pet?.images)
+            ? pet.images[0]
+            : (pet?.foto || "img/sin_foto.png")
+        });
+      }
+
+      // Abrir conversación automáticamente
+      const newMetaSnap = await get(ref(rdb, "conversations/" + roomId));
+      const newMeta = newMetaSnap.val();
+
+      openConversation(roomId, newMeta);
+    }
+
   </script>
 </body>
-</html>
 
+</html>
