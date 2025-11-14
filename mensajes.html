@@ -231,28 +231,28 @@
       initConversationFromURL();
     });
 
-   
+
     async function loadConversations() {
-  const list = $("convos");
-  list.innerHTML = "";
+      const list = $("convos");
+      list.innerHTML = "";
 
-  const convRef = ref(rdb, "conversations");
-  const snap = await get(convRef);
-  const data = snap.val() || {};
+      const convRef = ref(rdb, "conversations");
+      const snap = await get(convRef);
+      const data = snap.val() || {};
 
-  const all = Object.entries(data)
-    .filter(([id, c]) => c.participants?.includes(currentUser.uid))
-    .sort((a, b) => (b[1].lastTs || 0) - (a[1].lastTs || 0));
+      const all = Object.entries(data)
+        .filter(([id, c]) => c.participants?.includes(currentUser.uid))
+        .sort((a, b) => (b[1].lastTs || 0) - (a[1].lastTs || 0));
 
-  if (all.length === 0) {
-    list.innerHTML = `<p class="small">No hay conversaciones</p>`;
-    return;
-  }
+      if (all.length === 0) {
+        list.innerHTML = `<p class="small">No hay conversaciones</p>`;
+        return;
+      }
 
-  all.forEach(([id, meta]) => {
-    const div = document.createElement("div");
-    div.className = "chat-item";
-    div.innerHTML = `
+      all.forEach(([id, meta]) => {
+        const div = document.createElement("div");
+        div.className = "chat-item";
+        div.innerHTML = `
       <img src="${meta.mascotaFoto || 'img/sin_foto.png'}" 
            class="avatar" style="width:42px;height:42px;">
       <div>
@@ -261,10 +261,10 @@
       </div>
     `;
 
-    div.onclick = () => openConversation(id, meta);
-    list.appendChild(div);
-  });
-}
+        div.onclick = () => openConversation(id, meta);
+        list.appendChild(div);
+      });
+    }
 
 
 
@@ -414,39 +414,46 @@
       const snap = await get(convRef);
       const data = snap.val() || {};
 
-      // Buscar conversación existente
-      let roomId = Object.keys(data).find(id =>
-        data[id].mascotaId === petIdFromURL &&
-        data[id].participants?.includes(currentUser.uid)
-      );
+      // 👉 Buscar si ya existe conversación
+      let roomId = Object.keys(data).find(id => {
+        const c = data[id];
+        return c.mascotaId === petIdFromURL &&
+          c.participants &&
+          c.participants[currentUser.uid];
+      });
 
-      // Crear nueva conversación si no existe
+      // 👉 Crear conversación nueva solamente si no existe
       if (!roomId) {
         const newRef = push(convRef);
         roomId = newRef.key;
 
-        // Obtener dueño de la mascota
+        // ✔ Obtener datos de la mascota
         const petSnap = await get(ref(rdb, "mascotas/" + petIdFromURL));
-        const pet = petSnap.val();
-        const ownerUid = pet?.ownerUid || null;
+        const pet = petSnap.val() || {};
 
+        const ownerUid = pet.ownerUid || null;
+
+        // ✔ Construir objeto participants (NUNCA arrays)
+        const participantsObj = {};
+        participantsObj[currentUser.uid] = true;
+        if (ownerUid) participantsObj[ownerUid] = true;
+
+        // 👉 Guardar conversación
         await update(ref(rdb, "conversations/" + roomId), {
           mascotaId: petIdFromURL,
-          participants: [currentUser.uid, ownerUid].filter(Boolean),
+          participants: participantsObj,
           lastTs: Date.now(),
-           mascotaNombre: pet?.name || pet?.nombre || "Sin nombre",
-          mascotaFoto: Array.isArray(pet?.images)
-            ? pet.images[0]
-            : (pet?.foto || "img/sin_foto.png")
+          mascotaNombre: pet.name || pet.nombre || "Mascota",
+          mascotaFoto: Array.isArray(pet.images) ? pet.images[0] : "img/sin_foto.png"
         });
       }
 
-      // Abrir conversación automáticamente
-      const newMetaSnap = await get(ref(rdb, "conversations/" + roomId));
-      const newMeta = newMetaSnap.val();
-
-      openConversation(roomId, newMeta);
+      // 👉 Finalmente abrir la conversación
+      const roomSnap = await get(ref(rdb, "conversations/" + roomId));
+      const roomData = roomSnap.val();
+      openConversation(roomId, roomData);
     }
+
 
   </script>
 </body>
