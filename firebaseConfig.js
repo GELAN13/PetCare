@@ -1,11 +1,10 @@
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+  apiKey: "AIzaSyDP4gok-Eo7CFJrrx9hQfWBbTl9ZYjm5PY",
+  authDomain: "petcare-84260.firebaseapp.com",
+  databaseURL: "https://petcare-84260-default-rtdb.firebaseio.com",
+  projectId: "petcare-84260",
+  storageBucket: "petcare-84260.firebasestorage.app",
+  messagingSenderId: "135206785843",
+  appId: "1:135206785843:web:8a19ea8e18f9de79f4e446"
 };
-
 export default firebaseConfig;
