@@ -241,7 +241,8 @@
       const data = snap.val() || {};
 
       const all = Object.entries(data)
-        .filter(([id, c]) => c.participants?.includes(currentUser.uid))
+        .filter(([id, c]) => c.participants && c.participants[currentUser.uid])
+
         .sort((a, b) => (b[1].lastTs || 0) - (a[1].lastTs || 0));
 
       if (all.length === 0) {
@@ -284,7 +285,8 @@
         $("petThumb").src = (pet?.images?.[0]) || pet?.foto || "img/sin_foto.png";
       });
 
-      const otherUid = meta.participants.find(id => id !== currentUser.uid);
+      const otherUid = Object.keys(meta.participants).find(uid => uid !== currentUser.uid);
+
       get(ref(rdb, "usuarios/" + otherUid)).then(u => {
         $("chatTitle").textContent = (u.val()?.name) || otherUid;
         $("chatSub").textContent = meta.mascotaNombre || "";
@@ -417,10 +419,18 @@
       // 👉 Buscar si ya existe conversación
       let roomId = Object.keys(data).find(id => {
         const c = data[id];
-        return c.mascotaId === petIdFromURL &&
-          c.participants &&
-          c.participants[currentUser.uid];
+
+        if (!c.participants) return false;
+
+        // Participants SIEMPRE es un objeto
+        const participantKeys = Object.keys(c.participants);
+
+        return (
+          c.mascotaId === petIdFromURL &&
+          participantKeys.includes(currentUser.uid)
+        );
       });
+
 
       // 👉 Crear conversación nueva solamente si no existe
       if (!roomId) {
