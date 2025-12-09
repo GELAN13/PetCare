@@ -1,122 +1,128 @@
 <!doctype html>
 <html lang="es">
+
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Gestionar Mascotas — PetCare+</title>
-<link rel="stylesheet" href="styles.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Gestionar Mascotas — PetCare+</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 
 <body data-theme="light">
-<header class="header">
-  
-  <div class="brand"><h1>🐾 PetCare+ — Registro</h1></div>
-</header>
+  <header class="header">
 
-<main class="container">
-  <div class="panel" style="max-width:620px;margin:40px auto">
-
-    <h2>Crear cuenta</h2>
-
-    <div class="form-grid">
-      <input id="name" class="input" placeholder="Nombre">
-      <input id="email" class="input" placeholder="Correo" type="email">
-      <input id="phone" class="input" placeholder="Teléfono" type="tel">
-      <input id="password" class="input" placeholder="Contraseña" type="password">
-
-      <select id="role" class="input">
-        <option value="client">Cliente</option>
-      </select>
-
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button id="registerBtn" class="btn">Registrar</button>
-        <a href="index.html" class="btn" style="background:#6b7280">Volver</a>
-      </div>
-
-      <p id="msg" class="small"></p>
+    <div class="brand">
+      <h1>🐾 PetCare+ — Registro</h1>
     </div>
-  </div>
-</main>
+  </header>
 
-<script type="module">
-import firebaseConfig from './firebaseConfig.js';
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
-import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
-import { getDatabase, ref, set } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+  <main class="container">
+    <div class="panel" style="max-width:620px;margin:40px auto">
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const rdb = getDatabase(app);
+      <h2>Crear cuenta</h2>
 
-const $ = id => document.getElementById(id);
+      <div class="form-grid">
+        <input id="name" class="input" placeholder="Nombre">
+        <input id="email" class="input" placeholder="Correo" type="email">
+        <input id="phone" class="input" placeholder="Teléfono" type="tel">
+        <input id="password" class="input" placeholder="Contraseña" type="password">
 
-$('registerBtn').addEventListener('click', async ()=>{
+        <select id="role" class="input">
+          <option value="client">Cliente</option>
+          <option value="admin">Administrador</option>
+        </select>
 
-  const name  = $('name').value.trim();
-  const email = $('email').value.trim();
-  const phone = $('phone').value.trim();
-  const pw    = $('password').value;
-  const m     = $('msg');
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button id="registerBtn" class="btn">Registrar</button>
+          <a href="index.html" class="btn" style="background:#6b7280">Volver</a>
+        </div>
 
-  m.textContent = ""; // limpia mensajes previos
+        <p id="msg" class="small"></p>
+      </div>
+    </div>
+  </main>
 
-  // ✅ Validar campos vacíos
-  if (!name || !email || !pw || !phone){
-    m.textContent = "Completa todos los campos";
-    return;
-  }
+  <script type="module">
+    import firebaseConfig from './firebaseConfig.js';
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+    import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+    import { getDatabase, ref, set } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
 
-  // ✅ Validar formato de correo
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if(!emailRegex.test(email)){
-    m.textContent = "Correo inválido (ejemplo: usuario@gmail.com)";
-    return;
-  }
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const rdb = getDatabase(app);
 
-  // ✅ Validar teléfono de 10 dígitos
-  const phoneDigits = phone.replace(/\D/g,'');
-  if(phoneDigits.length !== 10){
-    m.textContent = "El teléfono debe tener exactamente 10 dígitos";
-    return;
-  }
+    const $ = id => document.getElementById(id);
 
-  // ✅ Validar contraseña mínima
-  if(pw.length < 6){
-    m.textContent = "La contraseña debe tener mínimo 6 caracteres";
-    return;
-  }
+    $('registerBtn').addEventListener('click', async () => {
 
-  try{
-    // Crear cuenta en Firebase
-    const cred = await createUserWithEmailAndPassword(auth,email,pw);
+      const name = $('name').value.trim();
+      const email = $('email').value.trim();
+      const phone = $('phone').value.trim();
+      const pw = $('password').value;
+      const m = $('msg');
 
-    // Guardar el nombre visible
-    await updateProfile(cred.user, { displayName: name });
+      m.textContent = ""; // limpia mensajes previos
 
-    // Guardar datos en la base de datos
-    await set(ref(rdb,'usuarios/'+cred.user.uid), {
-      uid: cred.user.uid,
-      name,
-      email,
-      telefono: phoneDigits,
-      role: 'client'
+      // ✅ Validar campos vacíos
+      if (!name || !email || !pw || !phone) {
+        m.textContent = "Completa todos los campos";
+        return;
+      }
+
+      // ✅ Validar formato de correo
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        m.textContent = "Correo inválido (ejemplo: usuario@gmail.com)";
+        return;
+      }
+
+      // ✅ Validar teléfono de 10 dígitos
+      const phoneDigits = phone.replace(/\D/g, '');
+      if (phoneDigits.length !== 10) {
+        m.textContent = "El teléfono debe tener exactamente 10 dígitos";
+        return;
+      }
+
+      // ✅ Validar contraseña mínima
+      if (pw.length < 6) {
+        m.textContent = "La contraseña debe tener mínimo 6 caracteres";
+        return;
+      }
+
+      try {
+        // Crear cuenta en Firebase
+        const cred = await createUserWithEmailAndPassword(auth, email, pw);
+        const role = $('role').value;
+
+        // Guardar el nombre visible
+        await updateProfile(cred.user, { displayName: name });
+
+        // Guardar datos en la base de datos
+        await set(ref(rdb, 'usuarios/' + cred.user.uid), {
+          uid: cred.user.uid,
+          name,
+          email,
+          telefono: phoneDigits,
+          role: role
+        });
+
+        m.textContent = "✅ Registrado correctamente";
+        setTimeout(() => window.location.href = 'index.html', 800);
+
+      } catch (e) {
+        m.textContent = e.message;
+      }
     });
 
-    m.textContent = "✅ Registrado correctamente";
-    setTimeout(()=>window.location.href='index.html', 800);
+    // Tema guardado
+    const saved = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', saved);
 
-  }catch(e){
-    m.textContent = e.message;
-  }
-});
+    // Volver al menú
 
-// Tema guardado
-const saved = localStorage.getItem('theme') || 'light';
-document.documentElement.setAttribute('data-theme', saved);
-
-// Volver al menú
-
-</script>
+  </script>
 
 </body>
+
 </html>

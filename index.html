@@ -1,12 +1,131 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Login</title><link rel="stylesheet" href="styles.css"></head><body data-theme="light">
-<header class="header"><div class="brand"><h1>🐾 PetCare+</h1></div></header>
-<main class="container"><div class="panel" style="max-width:480px;margin:40px auto"><h2>Iniciar sesión</h2><div class="form-grid"><input id="email" class="input" placeholder="Correo" type="email"><input id="password" class="input" placeholder="Contraseña" type="password"><div style="display:flex;gap:8px;justify-content:flex-end"><button id="loginBtn" class="btn">Entrar</button><a href="register.html" class="btn" style="background:#6b7280">Registro</a></div><p id="msg" class="small"></p></div></div></main>
-<script type="module">
-import firebaseConfig from './firebaseConfig.js';
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
-import { getAuth, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
-const app = initializeApp(firebaseConfig); const auth = getAuth(app);
-const $ = id => document.getElementById(id);
-$('loginBtn').addEventListener('click', async ()=>{ const email=$('email').value.trim(), pw=$('password').value, m=$('msg'); if(!email||!pw){ m.textContent='Completa los campos'; return; } try{ await signInWithEmailAndPassword(auth,email,pw); window.location.href='menu.html'; }catch(e){ m.textContent=e.message; } });
-const saved = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-theme', saved);
-</script></body></html>
+<!doctype html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Login</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body data-theme="light">
+    <header class="header">
+        <div class="brand">
+            <h1>🐾 PetCare+</h1>
+        </div>
+    </header>
+    <main class="container">
+        <div class="panel" style="max-width:480px;margin:40px auto">
+            <h2>Iniciar sesión</h2>
+            <div class="form-grid"><input id="email" class="input" placeholder="Correo" type="email"><input
+                    id="password" class="input" placeholder="Contraseña" type="password">
+                <div style="display:flex;gap:8px;justify-content:flex-end"><button id="loginBtn"
+                        class="btn">Entrar</button><a href="register.html" class="btn"
+                        style="background:#6b7280">Registro</a></div>
+                <p id="msg" class="small"></p>
+            </div>
+        </div>
+    </main>
+   
+
+    <script type="module">
+        import firebaseConfig from './firebaseConfig.js';
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+        import { getAuth, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+        import { getDatabase, ref, get } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const rdb = getDatabase(app);
+
+        const $ = id => document.getElementById(id);
+
+        // Función para mostrar estado de cuenta
+        function showAccountStatus(data) {
+            const container = $('msg');
+            const panel = document.querySelector('.panel');
+
+            if (data.estado === 'suspendido' && data.suspensionHasta) {
+                const hasta = new Date(data.suspensionHasta);
+                const ahora = new Date();
+
+                if (hasta > ahora) {
+                    // Cuenta suspendida
+                    panel.innerHTML = `
+        <h2>⏸️ Cuenta Suspendida</h2>
+        <div class="alert" style="background:#fee2e2;color:#991b1b;padding:16px;border-radius:8px;margin:16px 0;">
+          <p><strong>Tu cuenta ha sido suspendida temporalmente</strong></p>
+          <p>Motivo: ${data.suspensionRazon || 'Violación de términos'}</p>
+          <p>Puedes volver a ingresar el: <strong>${hasta.toLocaleString()}</strong></p>
+          ${data.suspensionComentario ? `<p>Detalles: ${data.suspensionComentario}</p>` : ''}
+        </div>
+        <p class="small muted">Si crees que esto es un error, contacta al administrador.</p>
+      `;
+                    return false;
+                }
+            }
+
+            if (data.estado === 'eliminado') {
+                // Cuenta eliminada
+                panel.innerHTML = `
+      <h2>❌ Cuenta Eliminada</h2>
+      <div class="alert" style="background:#fef3c7;color:#92400e;padding:16px;border-radius:8px;margin:16px 0;">
+        <p><strong>Tu cuenta ha sido eliminada permanentemente</strong></p>
+        <p>Fecha de eliminación: ${data.eliminadoFecha ? new Date(data.eliminadoFecha).toLocaleString() : 'No especificada'}</p>
+        ${data.eliminadoRazon ? `<p>Motivo: ${data.eliminadoRazon}</p>` : ''}
+      </div>
+      <p class="small muted">No puedes acceder al sistema.</p>
+    `;
+                return false;
+            }
+
+            return true; // Cuenta activa
+        }
+
+        $('loginBtn').addEventListener('click', async () => {
+            const email = $('email').value.trim();
+            const pw = $('password').value;
+            const m = $('msg');
+
+            if (!email || !pw) {
+                m.textContent = 'Completa los campos';
+                return;
+            }
+
+            try {
+                const cred = await signInWithEmailAndPassword(auth, email, pw);
+
+                // Obtener datos del usuario
+                const snap = await get(ref(rdb, 'usuarios/' + cred.user.uid));
+                const data = snap.val();
+
+                if (!data) {
+                    m.textContent = "Error: No existe registro del usuario.";
+                    return;
+                }
+
+                // Verificar estado de cuenta
+                if (!showAccountStatus(data)) {
+                    return; // No redirigir si la cuenta está suspendida/eliminada
+                }
+
+                // Redirecciones
+                if (data.role === "admin") {
+                    window.location.href = "dashboard.html";
+                } else {
+                    window.location.href = "menu.html";
+                }
+
+            } catch (e) {
+                m.textContent = e.message;
+            }
+        });
+
+        // Tema
+        const saved = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', saved);
+    </script>
+
+</body>
+
+</html>

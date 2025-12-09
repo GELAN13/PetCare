@@ -1,0 +1,1217 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PetCare+ — Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+        /* Estilos extra mínimos para el dashboard; respeta clases existentes */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin: 20px 0
+        }
+
+        .kpi {
+            background: var(--card-bg, #fff);
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: var(--shadow, 0 4px 14px rgba(0, 0, 0, .06))
+        }
+
+        .kpi h3 {
+            margin: 0 0 8px;
+            font-size: 12px;
+            color: #666
+        }
+
+        .kpi p {
+            font-size: 22px;
+            margin: 0
+        }
+
+        .cards-row {
+            display: flex;
+            gap: 12px
+        }
+
+        .card-small {
+            flex: 1;
+            background: var(--card-bg, #fff);
+            padding: 12px;
+            border-radius: 12px;
+            box-shadow: var(--shadow)
+        }
+
+        .canvas-wrap {
+            background: var(--card-bg, #fff);
+            padding: 12px;
+            border-radius: 12px
+        }
+
+        .users-list {
+            max-height: 360px;
+            overflow: auto
+        }
+
+        .mascota-card {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            padding: 8px;
+            border-radius: 8px
+        }
+
+        .mascota-card img {
+            width: 64px;
+            height: 64px;
+            object-fit: cover;
+            border-radius: 8px
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: #fff;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 8px;
+            cursor: pointer
+        }
+
+        .small-muted {
+            font-size: 12px;
+            color: #666
+        }
+
+        .panel-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center
+        }
+    </style>
+</head>
+
+<body data-theme="light">
+    <header class="header">
+        <div class="brand">
+            <h1>🐾 PetCare+ — Dashboard</h1>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="panel" style="margin:20px 0">
+            <div class="panel-title">
+                <h2>Dashboard General</h2>
+                <div>
+                    <button id="refreshBtn" class="btn">Actualizar</button>
+                    <button id="logoutBtn" class="btn" style="background:#6b7280">Salir</button>
+                </div>
+            </div>
+
+            <!-- KPIs -->
+            <section class="dashboard-grid" id="kpis">
+                <div class="kpi">
+                    <h3>Total de mascotas</h3>
+                    <p id="totalMascotas">0</p>
+                    <div class="small-muted">Actualizado en tiempo real</div>
+                </div>
+
+                <div class="kpi">
+                    <h3>Mascotas - Extraviado / Adopción</h3>
+                    <p id="mascotasSplit">0 / 0</p>
+                    <div class="small-muted">Por tipo</div>
+                </div>
+
+                <div class="kpi">
+                    <h3>Total de usuarios</h3>
+                    <p id="totalUsuarios">0</p>
+                    <div class="small-muted">Registrados</div>
+                </div>
+
+                <div class="kpi">
+                    <h3>Total de chats activos</h3>
+                    <p id="totalChats">0</p>
+                    <div class="small-muted">Conversaciones</div>
+                </div>
+
+                <div class="kpi">
+                    <h3>Últimas mascotas</h3>
+                    <div id="lastThree" class="cards-row"></div>
+                </div>
+
+                <div class="kpi">
+                    <h3>Acciones</h3>
+                    <div><button id="btnExportUsers" class="btn">Exportar usuarios (JSON)</button></div>
+                </div>
+            </section>
+
+            <!-- Graficas -->
+            <section style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+                <div class="canvas-wrap">
+                    <h4>Mascotas por tipo </h4>
+                    <canvas id="barChart" width="400" height="220"></canvas>
+                </div>
+
+                <div class="canvas-wrap">
+                    <h4>Porcentaje extraviados </h4>
+                    <canvas id="doughnutChart" width="300" height="220"></canvas>
+                </div>
+
+                <div class="canvas-wrap" style="grid-column:1 / -1">
+                    <h4>Mascotas agregadas por día (últimos 14 días)</h4>
+                    <canvas id="lineChart" width="1000" height="220"></canvas>
+                </div>
+            </section>
+
+            <!-- Usuarios y Chats -->
+            <section style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+                <div class="card-small">
+                    <h4>Usuarios
+                        <span class="small-muted" style="font-weight:normal">
+                            (Reportados: <span id="reportCount">0</span>)
+                        </span>
+                    </h4>
+                    <div class="users-list" id="usersList">Cargando usuarios...</div>
+                </div>
+
+                <div class="card-small">
+                    <h4>Solicitudes de Bloqueo</h4>
+                    <div id="reportsList" style="max-height:300px;overflow:auto">
+                        Cargando reportes...
+                    </div>
+                </div>
+
+                <div class="canvas-wrap" style="grid-column: 1 / -1; height: 500px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                        <h4 style="margin:0; font-size:14px">Conversaciones</h4>
+                        <button id="closeActiveChat" class="btn-small"
+                            style="background:#6b7280;color:white;border:none;padding:3px 6px;border-radius:4px;cursor:pointer;font-size:11px;display:none">
+                            Cerrar chat
+                        </button>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:200px;height:auto">
+
+                        <!-- Panel izquierdo: Lista de conversaciones -->
+                        <div style="border-right:1px solid #e5e7eb;padding-right:6px;height:100%">
+                            <div style="height:30%;overflow-y:auto;padding-right:2px" id="conversationsList">
+
+                                Cargando conversaciones...
+                            </div>
+                        </div>
+
+                        <!-- Panel derecho: Vista del chat seleccionado -->
+                        <div id="chatView" style="height:30%;overflow-y:auto;padding-left:6px">
+                            <div
+                                style="display:flex;flex-direction:column;justify-content:center;align-items:center;height:30%;color:#9ca3af;text-align:center;padding:10px">
+                                <div style="font-size:32px;margin-bottom:6px">💬</div>
+                                <div style="font-weight:500;margin-bottom:4px;font-size:13px">Selecciona una
+                                    conversación</div>
+                                <div class="small-muted" style="font-size:11px">Haz clic en "Ver chat" para ver los
+                                    mensajes</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <p id="msg" class="small muted" style="margin-top:12px"></p>
+        </div>
+    </main>
+
+    <script type="module">
+        import firebaseConfig from './firebaseConfig.js';
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+        import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+        import {
+            getDatabase, ref, onValue, get, update, child, query, orderByChild,
+            limitToLast, remove
+        } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const rdb = getDatabase(app);
+
+        const $ = id => document.getElementById(id);
+        const msg = $('msg');
+
+        // Canvas helpers
+        function clearCanvas(canvas) { const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); }
+        function drawBar(canvas, labels, values) {
+            clearCanvas(canvas);
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            const padding = 30;
+            const max = Math.max(...values, 1);
+            const barWidth = (w - padding * 2) / values.length * 0.6;
+            ctx.font = "12px Arial";
+            labels.forEach((lab, i) => {
+                const x = padding + i * ((w - padding * 2) / values.length) + ((w - padding * 2) / values.length - barWidth) / 2;
+                const barH = (values[i] / max) * (h - padding * 2);
+                ctx.fillStyle = "#3b82f6";
+                ctx.fillRect(x, h - padding - barH, barWidth, barH);
+                ctx.fillStyle = "#111827";
+                ctx.fillText(lab, x, h - 8);
+                ctx.fillText(values[i], x, h - padding - barH - 6);
+            });
+        }
+        function drawDoughnut(canvas, part, total) {
+            clearCanvas(canvas);
+            const ctx = canvas.getContext('2d');
+            const cx = canvas.width / 2, cy = canvas.height / 2, r = Math.min(cx, cy) - 20;
+            const start = 0;
+            const a1 = (part / Math.max(total, 1)) * Math.PI * 2;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.fillStyle = "#ef4444";
+            ctx.arc(cx, cy, r, start, start + a1);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.fillStyle = "#10b981";
+            ctx.arc(cx, cy, r, start + a1, Math.PI * 2);
+            ctx.fill();
+            // center text
+            ctx.fillStyle = "#111827";
+            ctx.font = "16px Arial";
+            const pct = Math.round((part / Math.max(total, 1)) * 100) + "%";
+            ctx.fillText(pct, cx - ctx.measureText(pct).width / 2, cy + 6);
+        }
+        function drawLine(canvas, labels, values) {
+            clearCanvas(canvas);
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height, pad = 40;
+            ctx.beginPath();
+            const max = Math.max(...values, 1);
+            labels.forEach((lab, i) => {
+                const x = pad + i * ((w - pad * 2) / (labels.length - 1 || 1));
+                const y = h - pad - (values[i] / max) * (h - pad * 2);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            ctx.strokeStyle = "#2563eb";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.font = "10px Arial";
+            labels.forEach((lab, i) => {
+                const x = pad + i * ((w - pad * 2) / (labels.length - 1 || 1));
+                ctx.fillStyle = "#111827";
+                ctx.fillText(lab, x - 10, h - 6);
+            });
+        }
+
+        // Estado
+        let mascotas = {};
+        let usuarios = {};
+        let conversaciones = {};
+
+
+        // util fechas
+        function fmtDate(ts) {
+            const d = new Date(ts);
+            return d.toLocaleString();
+        }
+
+        // REDIRECT solo admin
+        onAuthStateChanged(auth, async user => {
+            if (!user) { window.location.href = 'index.html'; return; }
+            try {
+                const snap = await get(ref(rdb, 'usuarios/' + user.uid));
+                const data = snap.val();
+                if (!data || data.role !== 'admin') {
+                    // no es admin -> al menu
+                    window.location.href = 'menu.html';
+                    return;
+                }
+                initDashboard();
+
+            } catch (e) {
+                msg.textContent = 'Error al validar rol: ' + e.message;
+            }
+        });
+
+        // Inicializacion
+        // En lugar de llamar setupReportListeners() directamente en initDashboard()
+        function initDashboard() {
+            setupListeners();
+            $('refreshBtn').addEventListener('click', () => { updateAllOnce(); });
+            $('logoutBtn').addEventListener('click', () => signOut(auth).then(() => window.location.href = 'index.html'));
+            $('btnExportUsers').addEventListener('click', exportUsersJSON);
+
+            // Esperar a que el DOM esté listo
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => {
+                    console.log('✅ DOM cargado, inicializando reportes');
+                    setupReportListeners();
+                });
+            } else {
+                console.log('✅ DOM ya cargado, inicializando reportes');
+                setupReportListeners();
+            }
+        }
+
+        // Listeners en tiempo real
+        function setupListeners() {
+            // mascotas
+            const mascRef = ref(rdb, 'mascotas');
+            onValue(mascRef, snap => {
+                mascotas = snap.val() || {};
+                updateKPIs();
+                updateCharts();
+                renderLastThree();
+
+            });
+
+            // usuarios
+            const usersRef = ref(rdb, 'usuarios');
+            onValue(usersRef, snap => {
+                usuarios = snap.val() || {};
+                renderUsers();
+                updateKPIs();
+
+            });
+
+            const repRef = ref(rdb, 'reportes');
+            onValue(repRef, snap => {
+                reportes = snap.val() || {};
+                renderUsers(); // Para que actualice la lista con usuarios reportados
+            });
+
+            // conversations (intento)
+            const convRef = ref(rdb, 'conversations');
+            onValue(convRef, snap => {
+                conversaciones = snap.val() || {};
+                renderConversations();
+                updateKPIs();
+            }, err => {
+                // Si la lectura está prohibida por reglas de seguridad, lo notificamos
+                $('conversationsList').innerHTML = '<div class="small-muted">No se pueden leer conversaciones con las reglas actuales.</div>';
+                console.warn('Error al leer conversations: ', err);
+            });
+        }
+
+        // Updates
+        function updateKPIs() {
+            const totalM = Object.keys(mascotas).length;
+            $('totalMascotas').textContent = totalM;
+
+            // count types
+            let adop = 0, extr = 0;
+            Object.values(mascotas).forEach(m => {
+                if (m.tipo === 'adopcion') adop++;
+                if (m.tipo === 'extraviado') extr++;
+            });
+            $('mascotasSplit').textContent = `${extr} / ${adop}`;
+            $('totalUsuarios').textContent = Object.keys(usuarios).length;
+
+            // chats: conversaciones cuenta - si no se pudo leer, se mantiene 0
+            $('totalChats').textContent = Object.keys(conversaciones || {}).length || 0;
+        }
+
+        // Charts update
+        function updateCharts() {
+            // Bar chart (tipo)
+            const bar = $('barChart');
+            const types = ['adopcion', 'extraviado'];
+            const vals = types.map(t => Object.values(mascotas).filter(m => m.tipo === t).length);
+            drawBar(bar, ['Adopción', 'Extraviado'], vals);
+
+            // Doughnut
+            const dough = $('doughnutChart');
+            const total = Object.keys(mascotas).length;
+            const extrCount = Object.values(mascotas).filter(m => m.tipo === 'extraviado').length;
+            drawDoughnut(dough, extrCount, total);
+
+            // Line chart: mascotas por dia (últimos 14 días)
+            const days = 14;
+            const counts = {};
+            for (let i = 0; i < days; i++) {
+                const d = new Date(); d.setDate(d.getDate() - (days - 1 - i));
+                const key = d.toISOString().slice(0, 10);
+                counts[key] = 0;
+            }
+            Object.values(mascotas).forEach(m => {
+                const ts = m.fecha || m.createdAt || m.fechaRegistro;
+                let key;
+                if (ts) {
+                    const d = new Date(ts);
+                    if (isNaN(d)) return;
+                    key = d.toISOString().slice(0, 10);
+                } else {
+                    // si no hay fecha, ignoramos
+                    return;
+                }
+                if (counts.hasOwnProperty(key)) counts[key]++;
+            });
+            const labels = Object.keys(counts);
+            const values = Object.values(counts);
+            drawLine($('lineChart'), labels, values);
+        }
+
+        // Last 3 mascotas
+        function renderLastThree() {
+            const container = $('lastThree');
+            container.innerHTML = '';
+
+            const arr = Object.entries(mascotas).map(([id, m]) => ({ id, ...m }));
+
+            arr.sort((a, b) => {
+                const ta = new Date(a.fecha || a.createdAt || 0).getTime();
+                const tb = new Date(b.fecha || b.createdAt || 0).getTime();
+                return tb - ta;
+            });
+
+            arr.slice(0, 3).forEach(m => {
+                const div = document.createElement('div');
+                div.className = 'mascota-card';
+
+                const img = document.createElement('img');
+                img.src = (m.images && m.images.length > 0)
+                    ? m.images[0]
+                    : 'https://via.placeholder.com/64?text=M';
+
+                const info = document.createElement('div');
+                info.innerHTML = `
+            <strong>${m.name || 'Sin nombre'}</strong>
+            <div class="small-muted">
+                ${m.tipo || 'N/A'} • ${fmtDate(m.fecha || m.createdAt || Date.now())}
+            </div>`;
+
+                div.appendChild(img);
+                div.appendChild(info);
+                container.appendChild(div);
+            });
+        }
+
+
+        // Usuarios
+        function renderUsers() {
+            const out = $('usersList');
+            out.innerHTML = '';
+
+            const arr = Object.entries(usuarios).map(([uid, u]) => ({ uid, ...u }));
+
+            if (arr.length === 0) {
+                out.innerHTML = '<div class="small-muted">Sin usuarios</div>';
+                return;
+            }
+
+            // Separar usuarios reportados
+            const usuariosReportados = [];
+            const usuariosNormales = [];
+
+            arr.forEach(u => {
+                // Verificar si tiene reportes pendientes
+                const tieneReportes = Object.values(reportes).some(r =>
+                    r.usuarioReportado === u.uid && r.estado === 'pendiente'
+                );
+
+                if (tieneReportes) {
+                    usuariosReportados.push(u);
+                } else {
+                    usuariosNormales.push(u);
+                }
+            });
+
+            // Ordenar: primero reportados, luego por fecha de creación (si existe)
+            const todosUsuarios = [...usuariosReportados, ...usuariosNormales];
+
+            todosUsuarios.forEach(u => {
+                const div = document.createElement('div');
+                div.style.display = 'flex';
+                div.style.justifyContent = 'space-between';
+                div.style.alignItems = 'center';
+                div.style.padding = '10px';
+                div.style.marginBottom = '8px';
+                div.style.borderRadius = '8px';
+                div.style.background = usuariosReportados.includes(u) ? '#fef3c7' : 'var(--card-bg,#fff)';
+                div.style.border = usuariosReportados.includes(u) ? '2px solid #f59e0b' : '1px solid #e5e7eb';
+
+                // Información del usuario
+                const userInfo = document.createElement('div');
+                userInfo.style.flex = '1';
+
+                let estadoBadge = '';
+                if (u.estado === 'suspendido') {
+                    const hasta = u.suspensionHasta ? new Date(u.suspensionHasta) : null;
+                    estadoBadge = hasta && hasta > new Date()
+                        ? `<span style="color:#dc2626">⏸️ Suspendido hasta ${hasta.toLocaleDateString()}</span>`
+                        : '<span style="color:#16a34a">✅ Activo</span>';
+                } else if (u.estado === 'eliminado') {
+                    estadoBadge = '<span style="color:#6b7280">❌ Eliminado</span>';
+                } else {
+                    estadoBadge = '<span style="color:#16a34a">✅ Activo</span>';
+                }
+
+                userInfo.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px">
+        <strong>${u.name || u.displayName || u.email || 'Sin nombre'}</strong>
+        ${usuariosReportados.includes(u) ? '<span style="background:#dc2626;color:white;padding:2px 6px;border-radius:4px;font-size:11px">🚨 Reportado</span>' : ''}
+      </div>
+      <div class="small-muted">
+        ${u.email || ''} ${u.telefono ? '• ' + u.telefono : ''} ${u.role ? '• ' + u.role : ''}
+      </div>
+      <div class="small">
+        ${estadoBadge}
+      </div>
+    `;
+
+                // Acciones
+                const actions = document.createElement('div');
+                actions.style.display = 'flex';
+                actions.style.gap = '6px';
+                actions.style.flexDirection = 'column';
+
+                if (u.estado !== 'eliminado') {
+                    const suspendBtn = document.createElement('button');
+                    suspendBtn.className = 'btn-small';
+                    suspendBtn.style.background = u.estado === 'suspendido' ? '#3b82f6' : '#3b82f6';
+
+                    suspendBtn.style.color = 'white';
+                    suspendBtn.style.border = 'none';
+                    suspendBtn.style.padding = '6px 12px';
+                    suspendBtn.style.borderRadius = '8px';
+                    suspendBtn.style.cursor = 'pointer';
+                    suspendBtn.textContent = u.estado === 'suspendido' ? '🔄 Re-activar' : '⏸️ Suspender';
+                    suspendBtn.onclick = () => toggleSuspendUser(u.uid, u);
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'btn-small btn-danger';
+                    deleteBtn.textContent = '🗑️ Eliminar';
+                    deleteBtn.style.background = '#6b7280'; // Gris para eliminar
+                    deleteBtn.style.color = 'white';
+                    deleteBtn.style.border = 'none';
+                    deleteBtn.style.padding = '6px 12px';
+                    deleteBtn.style.borderRadius = '8px';
+                    deleteBtn.style.cursor = 'pointer';
+                    deleteBtn.onclick = () => confirmDeleteUser(u.uid, u);
+
+                    actions.appendChild(suspendBtn);
+                    actions.appendChild(deleteBtn);
+                } else {
+                    const restoreBtn = document.createElement('button');
+                    restoreBtn.className = 'btn-small';
+                    restoreBtn.style.background = '#10b981';
+                    restoreBtn.textContent = '↩️ Restaurar';
+                    restoreBtn.onclick = () => restoreUser(u.uid);
+                    actions.appendChild(restoreBtn);
+                }
+
+                div.appendChild(userInfo);
+                div.appendChild(actions);
+                out.appendChild(div);
+            });
+        }
+
+        // Confirm delete
+        async function confirmDeleteUser(uid, userObj) {
+            if (!confirm(`Eliminar usuario ${userObj.name || userObj.email}? Esto borrará el nodo /usuarios/${uid} y sus mascotas (si existen). Esta acción puede fallar si las reglas no permiten que admin borre usuarios.`)) return;
+            try {
+                // borrar node usuarios/uid
+                await remove(ref(rdb, 'usuarios/' + uid));
+                // borrar mascotas del usuario (si en tus mascotas hay campo dueño/owner/uid)
+                // Buscamos y borramos las mascotas que tengan owner === uid
+                const mascSnap = await get(ref(rdb, 'mascotas'));
+                const all = mascSnap.val() || {};
+                const updates = [];
+                for (const [mid, m] of Object.entries(all)) {
+                    if (m.dueno === uid || m.duenio === uid || m.owner === uid || m.uid === uid) {
+                        // eliminar
+                        await remove(ref(rdb, 'mascotas/' + mid));
+                    }
+                }
+                alert('Usuario eliminado (si las reglas lo permitieron). Si viste un error, revisa permisos en las Realtime DB rules.');
+            } catch (e) {
+                console.error(e);
+                alert('Error al eliminar usuario: ' + e.message + '\nSi este error es "Permission denied", necesitas ajustar las reglas de seguridad para permitir que los admins borren usuarios desde el cliente, o usar una función server-side (Cloud Function) con credenciales Admin.');
+            }
+        }
+
+        // Conversations render
+        // Conversations render
+        async function renderConversations() {
+            const container = $('conversationsList');
+            container.innerHTML = '';
+
+            if (!conversaciones || Object.keys(conversaciones).length === 0) {
+                container.innerHTML = '<div class="small-muted">Sin conversaciones (o sin permiso para leerlas)</div>';
+                return;
+            }
+
+            // Para cada conversación, obtenemos información de los participantes
+            for (const [cid, c] of Object.entries(conversaciones)) {
+                const div = document.createElement('div');
+                div.style.padding = '10px';
+                div.style.borderBottom = '1px solid #eee';
+                div.style.cursor = 'pointer';
+                div.style.marginBottom = '8px';
+                div.style.borderRadius = '6px';
+                div.style.backgroundColor = 'var(--card-bg,#fff)';
+                div.style.border = '1px solid #e5e7eb';
+
+                // Obtener nombres de participantes si existen
+                let participantesInfo = '';
+                if (c.participants) {
+                    const participantIds = Object.keys(c.participants);
+
+                    // Intentar obtener nombres de hasta 2 participantes
+                    const participantNames = [];
+
+                    for (const pid of participantIds.slice(0, 2)) {
+                        try {
+                            const userSnap = await get(ref(rdb, 'usuarios/' + pid));
+                            if (userSnap.exists()) {
+                                const userData = userSnap.val();
+                                const userName = userData.name || userData.displayName || userData.email || 'Usuario';
+                                participantNames.push(userName);
+                            } else {
+                                participantNames.push(`ID: ${pid.substring(0, 8)}...`);
+                            }
+                        } catch (error) {
+                            participantNames.push(`ID: ${pid.substring(0, 8)}...`);
+                        }
+                    }
+
+                    participantesInfo = participantNames.join(' ↔ ');
+
+                    if (participantIds.length > 2) {
+                        participantesInfo += ` +${participantIds.length - 2} más`;
+                    }
+                }
+
+                const partCount = c.participants ? Object.keys(c.participants).length : 0;
+                const lastMessage = c.lastMessage ? c.lastMessage.text : 'Sin mensajes';
+                const lastMessageTime = c.lastMessage?.timestamp ?
+                    new Date(c.lastMessage.timestamp).toLocaleString('es-ES', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }) : '';
+
+                div.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                        <strong style="font-size: 14px;">Conversación</strong>
+                        <span style="background: #3b82f6; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;">
+                            ${partCount} participantes
+                        </span>
+                    </div>
+                    
+                    <div style="margin-bottom: 4px;">
+                        <span style="font-weight: 500; color: #4b5563; font-size: 13px;">
+                            ${participantesInfo || 'Participantes desconocidos'}
+                        </span>
+                    </div>
+                    
+                    <div style="margin-bottom: 4px;">
+                        <span style="color: #374151; font-size: 13px;">
+                            <strong>Último mensaje:</strong> ${lastMessage.substring(0, 50)}${lastMessage.length > 50 ? '...' : ''}
+                        </span>
+                    </div>
+                    
+                    <div class="small-muted" style="font-size: 11px;">
+                        ID: ${cid.substring(0, 12)}... • ${lastMessageTime}
+                    </div>
+                </div>
+                
+                <div style="margin-left: 8px;">
+                    <button class="btn-small" style="background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">
+                        Ver chat
+                    </button>
+                </div>
+            </div>
+        `;
+
+                // Agregar evento click a toda la tarjeta
+                div.addEventListener('click', () => openConversation(cid, c));
+
+                // También agregar evento específico al botón "Ver chat"
+                div.querySelector('button').addEventListener('click', (e) => {
+                    e.stopPropagation(); // Evitar que se dispare el evento del div padre
+                    openConversation(cid, c);
+                });
+
+                container.appendChild(div);
+            }
+        }
+        async function openConversation(cid, c) {
+            try {
+                const chatRef = ref(rdb, 'chats/' + cid);
+                const snap = await get(chatRef);
+                const msgs = snap.val();
+                const view = $('chatView');
+
+                // Limpiar y crear encabezado con información de participantes
+                view.innerHTML = `
+            <div style="background: #f3f4f6; padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h5 style="margin: 0; color: #111827;">Conversación: ${cid.substring(0, 15)}...</h5>
+                    <button id="closeChatView" class="btn-small" style="background: #6b7280; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                        Cerrar
+                    </button>
+                </div>
+                
+                <div id="participantsInfo" style="color: #4b5563; font-size: 13px;">
+                    Cargando información de participantes...
+                </div>
+            </div>
+            
+            <div style="max-height: 400px; overflow-y: auto; padding: 8px; border: 1px solid #e5e7eb; border-radius: 8px;">
+                <h6 style="margin: 0 0 12px 0; color: #4b5563;">Mensajes:</h6>
+                <div id="messagesList"></div>
+            </div>
+        `;
+
+                // Obtener información de participantes
+                const participantsDiv = document.getElementById('participantsInfo');
+                if (c.participants) {
+                    const participantIds = Object.keys(c.participants);
+                    const participantInfo = [];
+
+                    for (const pid of participantIds) {
+                        try {
+                            const userSnap = await get(ref(rdb, 'usuarios/' + pid));
+                            if (userSnap.exists()) {
+                                const userData = userSnap.val();
+                                const userName = userData.name || userData.displayName || userData.email || 'Usuario desconocido';
+                                const userEmail = userData.email ? `(${userData.email})` : '';
+                                const userStatus = userData.estado === 'suspendido' ?
+                                    `<span style="color: #dc2626;">⏸️ Suspendido</span>` :
+                                    `<span style="color: #16a34a;">✅ Activo</span>`;
+
+                                participantInfo.push(`
+                            <div style="margin-bottom: 4px;">
+                                <strong>${userName}</strong> ${userEmail}
+                                <div style="font-size: 11px; display: inline-block; margin-left: 8px;">
+                                    ${userStatus} • ID: ${pid.substring(0, 8)}...
+                                </div>
+                            </div>
+                        `);
+                            } else {
+                                participantInfo.push(`<div>ID: ${pid} (usuario no encontrado)</div>`);
+                            }
+                        } catch (error) {
+                            participantInfo.push(`<div>ID: ${pid} (error al cargar)</div>`);
+                        }
+                    }
+
+                    participantsDiv.innerHTML = `
+                <div style="font-weight: 500; margin-bottom: 4px;">Participantes (${participantIds.length}):</div>
+                ${participantInfo.join('')}
+            `;
+                } else {
+                    participantsDiv.innerHTML = '<div>Sin información de participantes</div>';
+                }
+
+                // Mostrar mensajes
+                const messagesList = document.getElementById('messagesList');
+
+                if (!msgs) {
+                    messagesList.innerHTML = '<div class="small-muted">Sin mensajes o sin permiso</div>';
+                } else {
+                    // Ordenar mensajes por timestamp
+                    const messagesArray = Object.entries(msgs).map(([mid, m]) => ({
+                        id: mid,
+                        ...m
+                    })).sort((a, b) => {
+                        const timeA = a.timestamp || a.fecha || 0;
+                        const timeB = b.timestamp || b.fecha || 0;
+                        return timeA - timeB;
+                    });
+
+                    for (const msg of messagesArray) {
+                        // Obtener nombre del remitente
+                        let senderName = msg.sender || 'Desconocido';
+                        if (msg.sender && msg.sender.length > 10) {
+                            try {
+                                const userSnap = await get(ref(rdb, 'usuarios/' + msg.sender));
+                                if (userSnap.exists()) {
+                                    const userData = userSnap.val();
+                                    senderName = userData.name || userData.displayName || userData.email || msg.sender;
+                                }
+                            } catch (error) {
+                                // Si falla, usar el ID como está
+                            }
+                        }
+
+                        const msgTime = msg.timestamp || msg.fecha || Date.now();
+                        const formattedTime = new Date(msgTime).toLocaleString('es-ES', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                        });
+
+                        const msgDiv = document.createElement('div');
+                        msgDiv.style.padding = '10px';
+                        msgDiv.style.marginBottom = '8px';
+                        msgDiv.style.borderRadius = '8px';
+                        msgDiv.style.backgroundColor = msg.sender === auth.currentUser?.uid ? '#dbeafe' : '#f3f4f6';
+                        msgDiv.style.borderLeft = `4px solid ${msg.sender === auth.currentUser?.uid ? '#3b82f6' : '#9ca3af'}`;
+
+                        msgDiv.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                        <div style="font-weight: 500; color: #111827; font-size: 13px;">
+                            ${senderName}
+                        </div>
+                        <div class="small-muted" style="font-size: 11px;">
+                            ${formattedTime}
+                        </div>
+                    </div>
+                    <div style="color: #374151; font-size: 14px;">
+                        ${msg.text || '(mensaje sin texto)'}
+                    </div>
+                    ${msg.imageUrl ? `<img src="${msg.imageUrl}" style="max-width: 200px; margin-top: 8px; border-radius: 4px;" />` : ''}
+                `;
+
+                        messagesList.appendChild(msgDiv);
+                    }
+                }
+
+                // Agregar evento al botón de cerrar
+                document.getElementById('closeChatView').addEventListener('click', () => {
+                    view.innerHTML = '';
+                });
+
+            } catch (e) {
+                console.error(e);
+                $('chatView').innerHTML = `
+            <div style="background: #fef2f2; padding: 12px; border-radius: 8px; border: 1px solid #fecaca;">
+                <div style="color: #dc2626; font-weight: 500;">Error al cargar la conversación</div>
+                <div class="small-muted" style="margin-top: 4px;">
+                    ${e.message || 'No es posible leer los mensajes (permiso denegado por reglas de seguridad).'}
+                </div>
+            </div>
+        `;
+            }
+        }
+
+        // Export users
+        function exportUsersJSON() {
+            const data = usuarios || {};
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'usuarios.json'; document.body.appendChild(a); a.click(); a.remove();
+        }
+
+        // One time update (fallback)
+        async function updateAllOnce() {
+            try {
+                const mSnap = await get(ref(rdb, 'mascotas'));
+                mascotas = mSnap.val() || {};
+                const uSnap = await get(ref(rdb, 'usuarios'));
+                usuarios = uSnap.val() || {};
+                const cSnap = await get(ref(rdb, 'conversations'));
+                conversaciones = cSnap.val() || {};
+                updateKPIs(); updateCharts(); renderLastThree(); renderUsers(); renderConversations();
+                msg.textContent = 'Datos actualizados';
+                setTimeout(() => msg.textContent = '', 3000);
+            } catch (e) {
+                msg.textContent = 'Error refrescando datos: ' + e.message;
+            }
+        }
+
+
+        // Variables globales
+        let reportes = {};
+
+        // Escuchar reportes
+        function setupReportListeners() {
+            console.log('🔥 setupReportListeners ejecutándose');
+            const reportsRef = ref(rdb, 'reportes');
+
+            onValue(reportsRef, snap => {
+                console.log('📊 Snap de reportes recibido:', snap.exists());
+                console.log('📊 Datos de reportes:', snap.val());
+                reportes = snap.val() || {};
+                console.log('📊 reportes asignado:', reportes);
+                renderReports();
+                updateReportCount();
+            }, (error) => {
+                console.error('❌ Error al cargar reportes:', error);
+            });
+        }
+
+        // Contar reportes
+        function updateReportCount() {
+            const pendientes = Object.values(reportes).filter(r => r.estado === 'pendiente').length;
+            $('reportCount').textContent = pendientes;
+        }
+
+        // Renderizar reportes
+        async function renderReports() {
+            console.log('🔄 renderReports ejecutándose');
+            const $ = (id) => document.getElementById(id);
+            const container = $('reportsList');
+
+            if (!container) {
+                console.error('❌ #reportsList no encontrado');
+                return;
+            }
+
+            console.log('📋 Reportes disponibles:', reportes);
+
+            container.innerHTML = '';
+
+            const reportsArray = Object.entries(reportes)
+                .filter(([id, r]) => r.estado === 'pendiente')
+                .sort((a, b) => b[1].fecha - a[1].fecha);
+
+            console.log('📊 Reportes pendientes:', reportsArray.length);
+
+            if (reportsArray.length === 0) {
+                container.innerHTML = '<div class="small-muted">No hay solicitudes pendientes</div>';
+                console.log('ℹ️ No hay reportes pendientes');
+                return;
+            }
+
+            for (const [id, report] of reportsArray) {
+                const div = document.createElement('div');
+                div.className = 'report-item';
+                div.style.padding = '12px';
+                div.style.borderBottom = '1px solid #eee';
+                div.style.marginBottom = '8px';
+
+                // Obtener nombres
+                const reporterSnap = await get(ref(rdb, 'usuarios/' + report.reportadoPor));
+                const reportedSnap = await get(ref(rdb, 'usuarios/' + report.usuarioReportado));
+
+                const reporter = reporterSnap.val();
+                const reported = reportedSnap.val();
+
+                div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:start">
+    <div>
+      <strong>${reported?.name || reported?.displayName || reported?.email || 'Usuario desconocido'}</strong>
+      <div style="color:#dc2626; font-size:12px; margin-top:2px">(Reportado)</div>
+      <div class="small-muted">
+        Reportado por: ${reporter?.name || reporter?.displayName || reporter?.email || 'Usuario'}
+      </div>
+          <div class="small" style="margin:4px 0">
+            <strong>Motivo:</strong> ${report.motivo}
+          </div>
+          <div class="small" style="margin:4px 0">
+            <strong>Comentario:</strong> ${report.comentario}
+          </div>
+          <div class="small-muted">
+            ${new Date(report.fecha).toLocaleString()}
+          </div>
+       </div>
+    <div style="display:flex;gap:6px;flex-direction:column">
+      <button class="btn-small btn-suspend" data-id="${id}" data-uid="${report.usuarioReportado}" 
+        style="background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:8px; cursor:pointer">
+        ⏸️ Suspender
+      </button>
+      <button class="btn-small btn-dismiss" data-id="${id}" 
+        style="background:#6b7280; color:white; border:none; padding:6px 12px; border-radius:8px; cursor:pointer">
+        Descartar
+      </button>
+    </div>
+  </div>
+`;
+
+                container.appendChild(div);
+            }
+
+            // Agregar event listeners
+            document.querySelectorAll('.btn-suspend').forEach(btn => {
+                btn.onclick = () => openSuspendModal(btn.dataset.id, btn.dataset.uid);
+            });
+
+            document.querySelectorAll('.btn-dismiss').forEach(btn => {
+                btn.onclick = () => dismissReport(btn.dataset.id);
+            });
+        }
+
+        function openSuspendModal(reporteId, usuarioId) {
+            const modalHTML = `
+    <div id="suspendModal" style="
+      position:fixed; top:0; left:0; right:0; bottom:0;
+      background:rgba(0,0,0,0.5); display:flex;
+      justify-content:center; align-items:center; z-index:1000;
+    ">
+      <div style="background:white; padding:24px; border-radius:12px; width:90%; max-width:500px;">
+        <h3 style="margin-top:0; color:#111827">⏸️ Suspender Usuario</h3>
+        <p style="color:#6b7280; margin-bottom:20px">Suspender temporalmente al usuario seleccionado.</p>
+        
+        <div style="margin:16px 0">
+          <label style="display:block; margin-bottom:8px; color:#111827; font-weight:500">
+            Motivo de suspensión:
+          </label>
+          <select id="suspendReason" style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-family:inherit">
+            <option value="violacion_terminos">Violación de términos</option>
+            <option value="comportamiento_inapropiado">Comportamiento inapropiado</option>
+            <option value="multiple_reportes">Múltiples reportes</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+        
+        <div style="margin:16px 0">
+          <label style="display:block; margin-bottom:8px; color:#111827; font-weight:500">
+            Comentario (opcional):
+          </label>
+          <textarea id="suspendComment" 
+            style="width:100%; min-height:80px; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-family:inherit" 
+            placeholder="Detalles adicionales..."></textarea>
+        </div>
+        
+        <div style="margin:16px 0">
+          <label style="display:block; margin-bottom:8px; color:#111827; font-weight:500">
+            Duración de suspensión:
+          </label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="number" id="suspendDays" value="1" min="1" max="365" 
+              style="width:80px; padding:10px; border:1px solid #d1d5db; border-radius:8px;">
+            <span style="color:#6b7280">días</span>
+            <input type="time" id="suspendTime" value="23:59"
+              style="padding:10px; border:1px solid #d1d5db; border-radius:8px;">
+          </div>
+        </div>
+        
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:24px">
+          <button id="cancelSuspend" 
+            style="background:#6b7280; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-family:inherit">
+            Cancelar
+          </button>
+          <button id="confirmSuspend" 
+            style="background:#3b82f6; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-family:inherit">
+            Suspender Usuario
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+            // Insertar modal en el DOM
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+            // Obtener elementos del modal (usando la función $ global existente)
+            const modalDiv = document.getElementById("suspendModal");
+            const cancelBtn = document.getElementById('cancelSuspend');
+            const confirmBtn = document.getElementById('confirmSuspend');
+
+            // Configurar event listeners solo si los elementos existen
+            if (cancelBtn && confirmBtn) {
+                // Evento para botón Cancelar
+                cancelBtn.onclick = () => {
+                    modalDiv.remove();
+                };
+
+                // Evento para botón Confirmar
+                confirmBtn.onclick = async () => {
+                    const reason = document.getElementById('suspendReason').value;
+                    const comment = document.getElementById('suspendComment').value;
+                    const days = parseInt(document.getElementById('suspendDays').value) || 1;
+                    const time = document.getElementById('suspendTime').value;
+
+                    // Calcular fecha de fin
+                    const ahora = new Date();
+                    const [hours, minutes] = time.split(':').map(Number);
+                    const fechaFin = new Date(ahora);
+                    fechaFin.setDate(fechaFin.getDate() + days);
+                    fechaFin.setHours(hours, minutes, 0, 0);
+
+                    try {
+                        // Actualizar usuario
+                        await update(ref(rdb, 'usuarios/' + usuarioId), {
+                            estado: 'suspendido',
+                            suspensionRazon: reason,
+                            suspensionComentario: comment,
+                            suspensionDesde: ahora.toISOString(),
+                            suspensionHasta: fechaFin.toISOString(),
+                            suspensionPorReporte: reporteId || null
+                        });
+
+                        // Si es por reporte, marcarlo como procesado
+                        if (reporteId) {
+                            await update(ref(rdb, 'reportes/' + reporteId), {
+                                estado: 'procesado',
+                                accion: 'usuario_suspendido',
+                                procesadoPor: auth.currentUser.uid,
+                                procesadoEn: Date.now()
+                            });
+                        }
+
+                        alert('✅ Usuario suspendido hasta ' + fechaFin.toLocaleString());
+                        modalDiv.remove();
+
+                    } catch (error) {
+                        console.error('Error al suspender usuario:', error);
+                        alert('Error al suspender usuario: ' + error.message);
+                    }
+                };
+            }
+
+            // Evento para cerrar modal haciendo clic fuera del contenido
+            modalDiv.addEventListener('click', (e) => {
+                if (e.target.id === 'suspendModal') {
+                    modalDiv.remove();
+                }
+            });
+        }
+
+        // Descartar reporte
+        async function dismissReport(reporteId) {
+            if (!confirm('¿Descartar este reporte?')) return;
+
+            try {
+                await update(ref(rdb, 'reportes/' + reporteId), {
+                    estado: 'descartado',
+                    procesadoPor: auth.currentUser.uid,
+                    procesadoEn: Date.now()
+                });
+            } catch (error) {
+                console.error('Error al descartar reporte:', error);
+            }
+        }
+
+        // Modificar renderUsers para mostrar usuarios reportados primero
+
+
+        // Función para suspender/re-activar usuario
+        async function toggleSuspendUser(uid, userObj) {
+            if (userObj.estado === 'suspendido') {
+                // Re-activar
+                if (confirm(`¿Re-activar la cuenta de ${userObj.name || userObj.email}?`)) {
+                    await update(ref(rdb, 'usuarios/' + uid), {
+                        estado: 'activo',
+                        suspensionRazon: null,
+                        suspensionComentario: null,
+                        suspensionHasta: null,
+                        suspensionDesde: null
+                    });
+                }
+            } else {
+                // Abrir modal para suspender
+                openSuspendModal(null, uid); // null porque no es por reporte
+            }
+        }
+
+        // Función para restaurar usuario eliminado
+        async function restoreUser(uid) {
+            if (confirm('¿Restaurar esta cuenta?')) {
+                await update(ref(rdb, 'usuarios/' + uid), {
+                    estado: 'activo',
+                    eliminadoFecha: null,
+                    eliminadoRazon: null
+                });
+            }
+        }
+
+
+    </script>
+
+
+
+
+</body>
+
+</html>

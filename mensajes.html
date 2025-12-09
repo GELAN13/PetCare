@@ -144,6 +144,83 @@
       padding: 8px;
       background: #f0f0f0;
     }
+
+
+
+
+    /* Modal de reporte */
+    .report-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+    }
+
+    .report-content {
+      background: var(--panel);
+      padding: 24px;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 500px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .report-option {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .report-option:hover {
+      background: #f9fafb;
+      border-color: #d1d5db;
+    }
+
+    .report-option.selected {
+      background: #dbeafe;
+      border-color: #3b82f6;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-family: inherit;
+      margin-top: 12px;
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .btn-report {
+      background: #dc2626;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-report:hover {
+      background: #b91c1c;
+    }
+  </style>
   </style>
 </head>
 
@@ -172,11 +249,15 @@
       <div class="chat-pane" id="chatPane">
         <div class="chat-header" id="chatHeader">
           <img id="petThumb" class="avatar" src="img/sin_foto.png" alt="mascota">
-          <div>
+          <div style="flex:1">
             <div id="chatTitle" class="chat-meta">Selecciona conversación</div>
             <div id="chatSub" class="chat-sub"></div>
           </div>
+          <button id="reportBtn" class="btn-report" style="display:none">
+            <span>🚨</span> Reportar
+          </button>
         </div>
+
 
         <div class="chat-window" id="chatWindow"></div>
         <div class="empty-note" id="emptyNote">Selecciona una conversación para empezar a chatear</div>
@@ -201,13 +282,58 @@
     </div>
   </div>
 
+
+  <div id="reportModal" class="report-modal">
+    <div class="report-content">
+      <h3>🚨 Reportar Usuario</h3>
+      <p class="small muted" id="reportTarget">Reportando a: </p>
+
+      <p><strong>Selecciona el motivo:</strong></p>
+
+      <div class="report-option" data-reason="spam">
+        <input type="radio" name="reportReason" id="spam">
+        <label for="spam">Spam o mensajes no deseados</label>
+      </div>
+
+      <div class="report-option" data-reason="inapropiado">
+        <input type="radio" name="reportReason" id="inapropiado">
+        <label for="inapropiado">Contenido inapropiado</label>
+      </div>
+
+      <div class="report-option" data-reason="acoso">
+        <input type="radio" name="reportReason" id="acoso">
+        <label for="acoso">Acoso o comportamiento agresivo</label>
+      </div>
+
+      <div class="report-option" data-reason="fraude">
+        <input type="radio" name="reportReason" id="fraude">
+        <label for="fraude">Posible fraude o estafa</label>
+      </div>
+
+      <div class="report-option" data-reason="otros">
+        <input type="radio" name="reportReason" id="otros">
+        <label for="otros">Otro motivo</label>
+      </div>
+
+      <textarea id="reportComment" placeholder="Por favor, proporciona más detalles sobre el reporte..."></textarea>
+
+      <div style="display:flex; gap:8px; margin-top:16px; justify-content:flex-end">
+        <button id="cancelReport" class="btn" style="background:#6b7280">Cancelar</button>
+        <button id="submitReport" class="btn" style="background:#dc2626">Enviar Reporte</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script type="module">
     import firebaseConfig from './firebaseConfig.js';
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
     import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
-    import { getDatabase, ref, get, onChildAdded, push, update, query, orderByChild, remove } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
-
+    import {
+      getDatabase, ref, onValue, get, child,
+      query, orderByChild, limitToLast, push, set, update, remove, onChildAdded
+    } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+    
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const rdb = getDatabase(app);
@@ -291,6 +417,7 @@
         $("chatTitle").textContent = (u.val()?.name) || otherUid;
         $("chatSub").textContent = meta.mascotaNombre || "";
         updateSelectButton(meta);
+        setupReportButton(meta);
       });
 
       const ordered = query(ref(rdb, "chats/" + roomId), orderByChild("ts"));
@@ -464,8 +591,113 @@
       openConversation(roomId, roomData);
     }
 
+    //reportar usuario
+
+    // Variables globales
+    let reportTargetUserId = null;
+    let reportTargetUserName = null;
+
+    // Mostrar botón de reporte
+    function setupReportButton(meta) {
+      const reportBtn = $("reportBtn");
+      if (!meta || !meta.participants) {
+        reportBtn.style.display = "none";
+        return;
+      }
+
+      const otherUid = Object.keys(meta.participants).find(uid => uid !== currentUser.uid);
+      if (otherUid) {
+        reportTargetUserId = otherUid;
+        get(ref(rdb, "usuarios/" + otherUid)).then(snap => {
+          const user = snap.val();
+          reportTargetUserName = user?.name || user?.email || otherUid;
+        });
+        reportBtn.style.display = "flex";
+      } else {
+        reportBtn.style.display = "none";
+      }
+    }
+
+    // Evento para abrir modal de reporte
+    $("reportBtn").onclick = () => {
+      if (!reportTargetUserId) return;
+
+      $("reportTarget").textContent = `Reportando a: ${reportTargetUserName || reportTargetUserId}`;
+      $("reportModal").style.display = "flex";
+
+      // Limpiar selección previa
+      document.querySelectorAll('.report-option').forEach(opt => {
+        opt.classList.remove('selected');
+      });
+      $("reportComment").value = "";
+    };
+
+    // Manejar selección de motivo
+    document.querySelectorAll('.report-option').forEach(opt => {
+      opt.onclick = () => {
+        document.querySelectorAll('.report-option').forEach(o => o.classList.remove('selected'));
+        opt.classList.add('selected');
+        const radio = opt.querySelector('input[type="radio"]');
+        if (radio) radio.checked = true;
+      };
+    });
+
+    // Cancelar reporte
+    $("cancelReport").onclick = () => {
+      $("reportModal").style.display = "none";
+    };
+
+    // Enviar reporte
+    $("submitReport").onclick = async () => {
+      const selected = document.querySelector('.report-option.selected');
+      if (!selected) {
+        alert('Por favor, selecciona un motivo');
+        return;
+      }
+
+      const reason = selected.getAttribute('data-reason');
+      const comment = $("reportComment").value.trim();
+
+      if (!comment) {
+        alert('Por favor, agrega un comentario explicando el reporte');
+        return;
+      }
+
+      try {
+        const reportRef = push(ref(rdb, 'reportes'));
+        await set(reportRef, {
+          reportadoPor: currentUser.uid,
+          usuarioReportado: reportTargetUserId,
+          motivo: reason,
+          comentario: comment,
+          fecha: Date.now(),
+          estado: 'pendiente',
+          conversacionId: activeRoom
+        });
+
+        alert('✅ Reporte enviado. El administrador lo revisará pronto.');
+        $("reportModal").style.display = "none";
+
+        // Opcional: notificar al admin
+        await push(ref(rdb, 'notificaciones'), {
+          tipo: 'reporte',
+          mensaje: `Nuevo reporte contra ${reportTargetUserName}`,
+          fecha: Date.now(),
+          leido: false,
+          reporteId: reportRef.key
+        });
+
+      } catch (error) {
+        console.error('Error al enviar reporte:', error);
+        alert('Error al enviar el reporte. Intenta nuevamente.');
+      }
+    };
+
+
 
   </script>
+
+
 </body>
 
 </html>
